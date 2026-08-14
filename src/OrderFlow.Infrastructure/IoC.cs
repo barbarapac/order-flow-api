@@ -5,9 +5,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using OrderFlow.Application._Shared;
+using OrderFlow.Domain.Products;
 using OrderFlow.Domain.Users;
 using OrderFlow.Infrastructure._Shared;
 using OrderFlow.Infrastructure.Auth;
+using OrderFlow.Infrastructure.Products;
 using OrderFlow.Infrastructure.Users;
 
 namespace OrderFlow.Infrastructure;
@@ -27,6 +29,7 @@ public static class IoC
 
         services.AddDbContext<OrderFlowDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
     }
 

@@ -1,5 +1,5 @@
-using System.Reflection;
 using FluentValidation;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using OrderFlow.Application._Shared;
 
@@ -7,14 +7,14 @@ namespace OrderFlow.Application;
 
 public static class DependencyInjection
 {
-    private static readonly Assembly ApplicationAssembly = typeof(DependencyInjection).Assembly;
+    private static readonly System.Reflection.Assembly ApplicationAssembly = typeof(DependencyInjection).Assembly;
 
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddMediatR(configuration =>
+        services.AddMediator(options =>
         {
-            configuration.RegisterServicesFromAssembly(ApplicationAssembly);
-            configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.PipelineBehaviors = [typeof(ValidationBehavior<,>)];
         });
 
         services.AddValidatorsFromAssembly(ApplicationAssembly);

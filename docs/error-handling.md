@@ -29,7 +29,7 @@ flowchart TD
 
 | Tipo                              | Onde nasce                                   | Quando                                                             |
 |------------------------------------|-----------------------------------------------|----------------------------------------------------------------------|
-| `FluentValidation.ValidationException` | `ValidationBehavior` (MediatR pipeline)  | Payload malformado: campo obrigatório ausente, formato inválido, `quantity <= 0` no request, etc. Roda **antes** do handler. |
+| `FluentValidation.ValidationException` | `ValidationBehavior` (pipeline do `Mediator`)  | Payload malformado: campo obrigatório ausente, formato inválido, `quantity <= 0` no request, etc. Roda **antes** do handler. |
 | `DomainException`                 | Guards dentro do `Order`/`User` (Domain)      | Invariante de agregado violada na construção ou transição de estado (`OrderGuard.HasItems`, transição `Canceled → Confirmed`). |
 | `InsufficientStockException`      | `OrderConfirmedDomainEventHandler` (Application) | Update condicional de estoque afetou 0 linhas durante a confirmação — não é invariante de agregado, é resultado de uma corrida concorrente. |
 | Não tipado (`Exception` genérica) | Qualquer lugar (infra, bug, driver do banco…) | Falha inesperada — nunca deveria acontecer em operação normal.        |
@@ -148,22 +148,25 @@ app.MapPost("/orders", async (PlaceOrderRequest request, ISender mediator, Cance
 });
 ```
 
-## 6. `ValidationBehavior` (MediatR pipeline) — o fastfail
+## 6. `ValidationBehavior` (pipeline do `Mediator`) — o fastfail
 
 Mesmo padrão de pipeline behavior que o `fiap-fcg-user-api` já usa para logging
 (`Fiap.FCG.User.Application/Observability/LoggingBehavior.cs`), aqui aplicado à validação — roda **antes** de
-qualquer handler, então nada toca domínio/repositório se o payload já está incorreto:
+qualquer handler, então nada toca domínio/repositório se o payload já está incorreto. Usa o pacote `Mediator`
+(Martin Othamar, source generator — não `MediatR`), registrado manualmente em `options.PipelineBehaviors` no
+`AddMediator` (pipeline behaviors não são descobertos automaticamente por assembly scan nessa lib):
 
 ```csharp
-public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
-    : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
+public sealed class ValidationBehavior<TMessage, TResponse>(IEnumerable<IValidator<TMessage>> validators)
+    : IPipelineBehavior<TMessage, TResponse> where TMessage : IMessage
 {
-    public async Task<TResponse> Handle(
-        TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+    public async ValueTask<TResponse> Handle(
+        TMessage message, MessageHandlerDelegate<TMessage, TResponse> next, CancellationToken cancellationToken)
     {
-        if (!validators.Any()) return await next();
+        if (!validators.Any())
+            return await next(message, cancellationToken);
 
-        var failures = (await Task.WhenAll(validators.Select(v => v.ValidateAsync(request, cancellationToken))))
+        var failures = (await Task.WhenAll(validators.Select(v => v.ValidateAsync(message, cancellationToken))))
             .SelectMany(r => r.Errors)
             .Where(f => f is not null)
             .ToList();
@@ -171,7 +174,7 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
         if (failures.Count != 0)
             throw new FluentValidation.ValidationException(failures);
 
-        return await next();
+        return await next(message, cancellationToken);
     }
 }
 ```

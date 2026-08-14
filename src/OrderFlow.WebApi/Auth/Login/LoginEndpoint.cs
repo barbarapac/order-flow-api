@@ -1,4 +1,4 @@
-using MediatR;
+using Mediator;
 using OrderFlow.Application.Auth.Login;
 using OrderFlow.WebApi._Shared;
 

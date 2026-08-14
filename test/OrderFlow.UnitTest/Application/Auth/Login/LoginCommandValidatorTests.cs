@@ -33,7 +33,9 @@ public class LoginCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(LoginCommand.Email));
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(LoginCommand.Email) &&
+            e.ErrorMessage == "O e-mail é obrigatório.");
     }
 
     [Fact]
@@ -47,7 +49,9 @@ public class LoginCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(LoginCommand.Email));
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(LoginCommand.Email) &&
+            e.ErrorMessage == "E-mail em formato inválido.");
     }
 
     [Theory]
@@ -63,7 +67,9 @@ public class LoginCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(LoginCommand.Password));
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(LoginCommand.Password) &&
+            e.ErrorMessage == "A senha é obrigatória.");
     }
 
     [Fact]

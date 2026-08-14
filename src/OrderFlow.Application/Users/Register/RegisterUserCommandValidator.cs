@@ -7,16 +7,16 @@ public sealed class RegisterUserCommandValidator : AbstractValidator<RegisterUse
     public RegisterUserCommandValidator()
     {
         RuleFor(x => x.Name)
-            .NotEmpty();
+            .NotEmpty().WithMessage("O nome é obrigatório.");
 
         RuleFor(x => x.Email)
-            .NotEmpty()
-            .EmailAddress();
+            .NotEmpty().WithMessage("O e-mail é obrigatório.")
+            .EmailAddress().WithMessage("E-mail em formato inválido.");
 
         RuleFor(x => x.Password)
-            .NotEmpty()
-            .MinimumLength(8).WithMessage("Password must be at least 8 characters long.")
-            .Matches("[A-Za-z]").WithMessage("Password must contain at least one letter.")
-            .Matches("[0-9]").WithMessage("Password must contain at least one digit.");
+            .NotEmpty().WithMessage("A senha é obrigatória.")
+            .MinimumLength(8).WithMessage("A senha deve ter no mínimo 8 caracteres.")
+            .Matches("[A-Za-z]").WithMessage("A senha deve conter pelo menos uma letra.")
+            .Matches("[0-9]").WithMessage("A senha deve conter pelo menos um dígito.");
     }
 }

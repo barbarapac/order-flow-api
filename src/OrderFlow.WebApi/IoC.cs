@@ -27,7 +27,7 @@ public static class IoC
                 Scheme       = "Bearer",
                 BearerFormat = "JWT",
                 In           = ParameterLocation.Header,
-                Description  = "JWT obtained from POST /auth/token. Example: \"Bearer {token}\"."
+                Description  = "JWT obtained from POST /auth/token."
             });
 
             options.AddSecurityRequirement(document => new OpenApiSecurityRequirement

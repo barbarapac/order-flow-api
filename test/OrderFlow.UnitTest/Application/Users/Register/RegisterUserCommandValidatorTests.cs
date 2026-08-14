@@ -33,7 +33,9 @@ public class RegisterUserCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterUserCommand.Name));
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(RegisterUserCommand.Name) &&
+            e.ErrorMessage == "O nome é obrigatório.");
     }
 
     [Theory]
@@ -49,7 +51,9 @@ public class RegisterUserCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterUserCommand.Email));
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(RegisterUserCommand.Email) &&
+            e.ErrorMessage == "O e-mail é obrigatório.");
     }
 
     [Fact]
@@ -63,7 +67,9 @@ public class RegisterUserCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterUserCommand.Email));
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(RegisterUserCommand.Email) &&
+            e.ErrorMessage == "E-mail em formato inválido.");
     }
 
     [Theory]
@@ -79,7 +85,9 @@ public class RegisterUserCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterUserCommand.Password));
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == nameof(RegisterUserCommand.Password) &&
+            e.ErrorMessage == "A senha é obrigatória.");
     }
 
     [Theory]
@@ -97,7 +105,7 @@ public class RegisterUserCommandValidatorTests
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e =>
             e.PropertyName == nameof(RegisterUserCommand.Password) &&
-            e.ErrorMessage == "Password must be at least 8 characters long.");
+            e.ErrorMessage == "A senha deve ter no mínimo 8 caracteres.");
     }
 
     [Fact]
@@ -113,7 +121,7 @@ public class RegisterUserCommandValidatorTests
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e =>
             e.PropertyName == nameof(RegisterUserCommand.Password) &&
-            e.ErrorMessage == "Password must contain at least one letter.");
+            e.ErrorMessage == "A senha deve conter pelo menos uma letra.");
     }
 
     [Fact]
@@ -129,6 +137,6 @@ public class RegisterUserCommandValidatorTests
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e =>
             e.PropertyName == nameof(RegisterUserCommand.Password) &&
-            e.ErrorMessage == "Password must contain at least one digit.");
+            e.ErrorMessage == "A senha deve conter pelo menos um dígito.");
     }
 }

@@ -1,20 +1,20 @@
 using FluentValidation;
-using MediatR;
+using Mediator;
 
 namespace OrderFlow.Application._Shared;
 
-public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
-    : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
+public sealed class ValidationBehavior<TMessage, TResponse>(IEnumerable<IValidator<TMessage>> validators)
+    : IPipelineBehavior<TMessage, TResponse>
+    where TMessage : IMessage
 {
-    public async Task<TResponse> Handle(
-        TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+    public async ValueTask<TResponse> Handle(
+        TMessage message, MessageHandlerDelegate<TMessage, TResponse> next, CancellationToken cancellationToken)
     {
         if (!validators.Any())
-            return await next(cancellationToken);
+            return await next(message, cancellationToken);
 
         var failures = (await Task.WhenAll(
-                validators.Select(validator => validator.ValidateAsync(request, cancellationToken))))
+                validators.Select(validator => validator.ValidateAsync(message, cancellationToken))))
             .SelectMany(result => result.Errors)
             .Where(failure => failure is not null)
             .ToList();
@@ -22,6 +22,6 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
         if (failures.Count != 0)
             throw new ValidationException(failures);
 
-        return await next(cancellationToken);
+        return await next(message, cancellationToken);
     }
 }

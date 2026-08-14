@@ -51,7 +51,7 @@ pedido permanece `Placed` (cliente decide se cancela ou tenta depois).
 ## ADR-005 — Concorrência: evento de domínio + lock distribuído (Redis) + update condicional transacional
 
 **Decisão**: `Order.Confirm()` apenas transiciona o status e levanta `OrderConfirmedDomainEvent`. Um
-`INotificationHandler` (MediatR) consome o evento, adquire um lock distribuído no Redis por
+`INotificationHandler` (`Mediator`) consome o evento, adquire um lock distribuído no Redis por
 `product:{productId}:stock` (ProductIds ordenados para evitar deadlock em pedidos multi-item) e executa, dentro
 da mesma transação Postgres do `ConfirmOrderCommandHandler`, um `UPDATE ... WHERE available_quantity >= @qty`
 verificando linhas afetadas.
@@ -125,7 +125,8 @@ deploy separado (migration bundle) — mencionado aqui como trade-off consciente
 
 **Decisão**: tratamento de erro global via `IExceptionHandler` (mecanismo nativo do .NET 8+, não middleware
 customizado), com três caminhos bem separados — exceptions de validação de formato (`FluentValidation`,
-levantadas por um `ValidationBehavior` do MediatR antes de qualquer handler rodar), exceptions tipadas de negócio
+levantadas por um `ValidationBehavior` do `Mediator` antes de qualquer handler rodar), exceptions tipadas de
+negócio
 (`AppException` e suas derivadas `DomainException`/`InsufficientStockException`) e o inesperado (500, sem vazar
 detalhe interno). Todas mapeadas por uma única tabela `ErrorType → HttpStatusCode`, reaproveitada também pelo
 `Result<T>.Failure` retornado pelos handlers (não é exception, mapeado direto no endpoint). Detalhamento completo,
@@ -149,7 +150,14 @@ com `Result<T>`.
       (`IExceptionHandler`) + `ValidationBehavior` + `AddProblemDetails()`; Swagger com suporte a Bearer;
       `docker-compose` com Postgres — validado de ponta a ponta (`docker compose up`, migration aplicada
       automaticamente, registro/login/JWT/erros retornando o status HTTP correto).
-- [ ] **Fase 2** — CRUD de `Product` (anêmico) + FluentValidation.
+- [x] **Fase 2** — CRUD de `Product` (anêmico): agregado `Product` sem Guards (propriedades públicas,
+      `Id`/`CreatedAtUtc` gerados no próprio objeto); vertical slices `Products/Create`, `Products/Update`,
+      `Products/Delete`, `Products/GetById`, `Products/GetAll` (`POST /products`, `PUT /products/{id}`,
+      `DELETE /products/{id}`, `GET /products/{id}`, `GET /products`), todos atrás de `RequireAuthorization()`
+      (qualquer usuário autenticado — ainda não há `Role`/Admin); validação 100% FluentValidation (nome
+      obrigatório, `UnitPrice > 0`, `AvailableQuantity >= 0`); `ProductConfiguration` + migration `AddProduct` —
+      validado de ponta a ponta contra Postgres real via Docker (CRUD completo, 404 após delete, 400 de
+      validação).
 - [ ] **Fase 3** — `POST /orders` (`Place`): validação de itens/estoque, `Total`, `GET /orders/{id}`,
       `GET /orders` (paginação + filtros).
 - [ ] **Fase 4** — `POST /orders/{id}/confirm`: evento de domínio, lock distribuído Redis, update condicional

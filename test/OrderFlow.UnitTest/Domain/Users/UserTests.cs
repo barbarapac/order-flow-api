@@ -9,8 +9,8 @@ public class UserTests
     public void Register_WithValidData_CreatesUserAsCustomerByDefault()
     {
         // Arrange
-        var name = "Jane Doe";
-        var email = "jane@example.com";
+        var name         = "Jane Doe";
+        var email        = "jane@example.com";
         var passwordHash = "hashed-password";
 
         // Act

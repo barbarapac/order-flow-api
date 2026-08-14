@@ -291,7 +291,7 @@ sequenceDiagram
     participant API as Endpoint
     participant Handler as ConfirmOrderCommandHandler
     participant Order as Order (Domain)
-    participant Mediator as MediatR
+    participant Mediator as Mediator
     participant EvtHandler as OrderConfirmedDomainEventHandler
     participant Lock as IDistributedLockProvider (Redis)
     participant Repo as ProductRepository

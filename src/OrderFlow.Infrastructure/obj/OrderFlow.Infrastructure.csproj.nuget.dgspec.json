@@ -58,9 +58,15 @@
               "target": "Package",
               "version": "[12.1.1, )"
             },
-            "MediatR": {
+            "Mediator.Abstractions": {
               "target": "Package",
-              "version": "[14.2.0, )"
+              "version": "[3.0.2, )"
+            },
+            "Mediator.SourceGenerator": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[3.0.2, )"
             }
           },
           "imports": [
@@ -399,9 +405,9 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "dependencies": {
-            "MediatR.Contracts": {
+            "Mediator.Abstractions": {
               "target": "Package",
-              "version": "[2.0.1, )"
+              "version": "[3.0.2, )"
             }
           },
           "imports": [

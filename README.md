@@ -3,7 +3,7 @@
 Serviço de gestão de Pedidos com itens, validação de estoque, autenticação JWT e operações idempotentes.
 
 Construído em .NET 10 / Minimal API, com DDD (Domain / Application / Infrastructure / API) organizado por
-**Vertical Slice**, EF Core + Postgres, e CQRS simplificado via MediatR.
+**Vertical Slice**, EF Core + Postgres, e CQRS via `Mediator` (`ICommand`/`IQuery`, source generator).
 
 Documentação de arquitetura e decisões técnicas:
 
@@ -24,7 +24,7 @@ Os endpoints de `Product`/`Order` do enunciado ainda não foram implementados �
 
 - .NET 10 · ASP.NET Core Minimal API
 - EF Core 10 + Npgsql (Postgres)
-- MediatR (CQRS) + FluentValidation (fastfail)
+- Mediator (CQRS via `ICommand`/`IQuery`) + FluentValidation (fastfail)
 - BCrypt.Net (hash de senha) + JWT Bearer
 - Swashbuckle (Swagger)
 - xUnit + FluentAssertions + Moq

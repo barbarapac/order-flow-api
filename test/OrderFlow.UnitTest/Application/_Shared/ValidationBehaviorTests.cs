@@ -1,6 +1,7 @@
 using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
+using Mediator;
 using Moq;
 using OrderFlow.Application._Shared;
 
@@ -8,7 +9,7 @@ namespace OrderFlow.UnitTest.Application._Shared;
 
 public class ValidationBehaviorTests
 {
-    public sealed record FakeRequest;
+    public sealed record FakeRequest : ICommand<FakeResponse>;
 
     public sealed record FakeResponse;
 
@@ -30,10 +31,10 @@ public class ValidationBehaviorTests
         nextCalled.Should().BeTrue();
         return;
 
-        Task<FakeResponse> Next(CancellationToken _)
+        ValueTask<FakeResponse> Next(FakeRequest _, CancellationToken __)
         {
             nextCalled = true;
-            return Task.FromResult(_expectedResponse);
+            return new ValueTask<FakeResponse>(_expectedResponse);
         }
     }
 
@@ -56,10 +57,10 @@ public class ValidationBehaviorTests
         nextCalled.Should().BeTrue();
         return;
 
-        Task<FakeResponse> Next(CancellationToken _)
+        ValueTask<FakeResponse> Next(FakeRequest _, CancellationToken __)
         {
             nextCalled = true;
-            return Task.FromResult(_expectedResponse);
+            return new ValueTask<FakeResponse>(_expectedResponse);
         }
     }
 
@@ -84,10 +85,10 @@ public class ValidationBehaviorTests
         nextCalled.Should().BeFalse();
         return;
 
-        Task<FakeResponse> Next(CancellationToken _)
+        ValueTask<FakeResponse> Next(FakeRequest _, CancellationToken __)
         {
             nextCalled = true;
-            return Task.FromResult(_expectedResponse);
+            return new ValueTask<FakeResponse>(_expectedResponse);
         }
     }
 
@@ -106,7 +107,7 @@ public class ValidationBehaviorTests
         var behavior = new ValidationBehavior<FakeRequest, FakeResponse>([firstValidator.Object, secondValidator.Object]);
 
         // Act
-        var act = async () => await behavior.Handle(_request, _ => Task.FromResult(_expectedResponse), default);
+        var act = async () => await behavior.Handle(_request, (_, _) => new ValueTask<FakeResponse>(_expectedResponse), default);
 
         // Assert
         var exception = await act.Should().ThrowAsync<ValidationException>();
