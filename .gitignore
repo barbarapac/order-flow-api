@@ -1,0 +1,98 @@
+# =========================
+# Build results (.NET)
+# =========================
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+# Build results directories
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Dd]ebugPS/
+[Rr]eleasePS/
+[Pp]ublish/
+
+# =========================
+# Visual Studio
+# =========================
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# =========================
+# JetBrains Rider
+# =========================
+.idea/
+*.sln.iml
+
+# =========================
+# VS Code
+# =========================
+.vscode/
+!.vscode/extensions.json
+
+# =========================
+# .NET Core / testes
+# =========================
+project.lock.json
+project.fragment.lock.json
+artifacts/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+# =========================
+# NuGet
+# =========================
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# =========================
+# Rider/ReSharper
+# =========================
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# =========================
+# Arquivos de sistema operacional
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Segredos e configurações locais
+# =========================
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+*.env
+.env
+secrets.json
+
+# =========================
+# Outros
+# =========================
+*.pdb
+*.cache
+*.tmp
+*.bak
