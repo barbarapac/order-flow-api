@@ -11,11 +11,20 @@ public sealed class ProductRepository(OrderFlowDbContext dbContext) : IProductRe
         return await dbContext.Products.FindAsync([id], cancellationToken);
     }
 
-    public async Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<(IReadOnlyCollection<Product> Items, int TotalCount)> GetPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken)
     {
-        return await dbContext.Products.AsNoTracking()
+        var query = dbContext.Products.AsNoTracking();
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
             .OrderBy(p => p.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
     }
 
     public void Add(Product product)

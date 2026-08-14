@@ -8,30 +8,35 @@ namespace OrderFlow.UnitTest.Application.Products.GetAll;
 public class GetAllProductsQueryHandlerTests : GetAllProductsQueryHandlerFixture
 {
     [Fact]
-    public async Task Handle_WithExistingProducts_ReturnsAllMapped()
+    public async Task Handle_WithExistingProducts_ReturnsPagedMapped()
     {
         // Arrange
         var products = ProductFaker.ManyValid(3);
-        ProductRepositoryMock.ConfigureGetAllToReturn(products);
+        ProductRepositoryMock.ConfigureGetPagedToReturn(products, 3);
 
         // Act
-        var result = await Handler.Handle(new GetAllProductsQuery(), default);
+        var result = await Handler.Handle(new GetAllProductsQuery(1, 20), default);
 
         // Assert
-        result.Should().HaveCount(3);
-        result.Select(r => r.Id).Should().BeEquivalentTo(products.Select(p => p.Id));
+        result.Items.Should().HaveCount(3);
+        result.Items.Select(i => i.Id).Should().BeEquivalentTo(products.Select(p => p.Id));
+        result.TotalCount.Should().Be(3);
+        result.Page.Should().Be(1);
+        result.PageSize.Should().Be(20);
+        result.TotalPages.Should().Be(1);
     }
 
     [Fact]
-    public async Task Handle_WithNoProducts_ReturnsEmptyCollection()
+    public async Task Handle_WithNoProducts_ReturnsEmptyPage()
     {
         // Arrange
-        ProductRepositoryMock.ConfigureGetAllToReturn([]);
+        ProductRepositoryMock.ConfigureGetPagedToReturn([], 0);
 
         // Act
-        var result = await Handler.Handle(new GetAllProductsQuery(), default);
+        var result = await Handler.Handle(new GetAllProductsQuery(1, 20), default);
 
         // Assert
-        result.Should().BeEmpty();
+        result.Items.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
     }
 }
