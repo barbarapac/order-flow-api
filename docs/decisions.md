@@ -66,8 +66,17 @@ o banco e demonstra um padrão que se estende bem se o controle de estoque um di
 `409 Conflict` via `ProblemDetails`. Essa exception **não é uma `DomainException`** (não nasce de um Guard dentro
 do agregado `Order`/`Product`) — é uma `AppException` irmã, lançada pelo handler de aplicação para controlar o
 fluxo transacional; ver ADR-011 / [`error-handling.md`](./error-handling.md) para a taxonomia completa.
-**Biblioteca**: a definir na Fase 4 (candidatas: `RedLock.net` ou `Medallion.Threading.Redis`) — só entra como
-dependência quando a feature de confirmação for implementada, não na Fase 1.
+**Biblioteca**: implementação manual com `StackExchange.Redis` puro (sem `RedLock.net` nem
+`Medallion.Threading.Redis`) — aquisição via `SET lock:{resource} {guid} NX EX 30` (`StringSetAsync` com
+`When.NotExists`, atômico), espera por polling (`Task.Delay(50ms)`) enquanto a chave existir, e liberação via
+script Lua atômico (`EVAL`/`ScriptEvaluateAsync`, `GET` + `DEL` condicional em uma única chamada) que só apaga a
+chave se o valor armazenado ainda for o `Guid` gerado por aquela aquisição — evita que uma instância libere um
+lock que já expirou e foi readquirido por outro processo.
+**Motivo**: simplicidade e controle total sobre o comportamento. O projeto roda com uma única instância Redis
+(sem cluster/sentinela), então o algoritmo Redlock multi-instância que `RedLock.net` implementa não se aplica
+aqui — seria complexidade sem benefício real. `StackExchange.Redis` já expõe os primitivos necessários
+(`StringSetAsync`, `ScriptEvaluateAsync`) e suas interfaces (`IConnectionMultiplexer`, `IDatabase`) são
+diretamente mockáveis em teste, sem depender de um Redis real rodando.
 
 ## ADR-006 — `Product` anêmico, `Order` rico
 

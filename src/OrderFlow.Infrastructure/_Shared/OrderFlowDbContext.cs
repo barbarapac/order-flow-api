@@ -8,9 +8,9 @@ namespace OrderFlow.Infrastructure._Shared;
 
 public sealed class OrderFlowDbContext(DbContextOptions<OrderFlowDbContext> options) : DbContext(options)
 {
-    public DbSet<User> Users => Set<User>();
+    public DbSet<User> Users       => Set<User>();
     public DbSet<Product> Products => Set<Product>();
-    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<Order> Orders     => Set<Order>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

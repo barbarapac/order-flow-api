@@ -13,6 +13,7 @@ using OrderFlow.Infrastructure.Auth;
 using OrderFlow.Infrastructure.Orders;
 using OrderFlow.Infrastructure.Products;
 using OrderFlow.Infrastructure.Users;
+using StackExchange.Redis;
 
 namespace OrderFlow.Infrastructure;
 
@@ -22,6 +23,7 @@ public static class IoC
     {
         AddDbContext(services, configuration);
         AddSecurity(services, configuration);
+        AddRedis(services, configuration);
     }
 
     private static void AddDbContext(IServiceCollection services, IConfiguration configuration)
@@ -63,5 +65,14 @@ public static class IoC
             });
 
         services.AddAuthorization();
+    }
+
+    private static void AddRedis(IServiceCollection services, IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Redis")
+            ?? throw new InvalidOperationException("Connection string 'Redis' is not configured.");
+
+        services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(connectionString));
+        services.AddSingleton<IDistributedLock, RedisDistributedLock>();
     }
 }
