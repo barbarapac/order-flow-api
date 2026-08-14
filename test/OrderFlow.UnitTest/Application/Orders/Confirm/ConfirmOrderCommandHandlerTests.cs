@@ -16,7 +16,7 @@ public class ConfirmOrderCommandHandlerTests : ConfirmOrderCommandHandlerFixture
     {
         // Arrange
         var customerId = Guid.NewGuid();
-        var order = OrderFaker.Placed(customerId);
+        var order = OrderFaker.Create(customerId);
         OrderRepositoryMock.ConfigureGetTrackedByIdToReturn(order.Id, customerId, order);
 
         var command = new ConfirmOrderCommand(order.Id, customerId);
@@ -32,6 +32,9 @@ public class ConfirmOrderCommandHandlerTests : ConfirmOrderCommandHandlerFixture
 
         PublisherMock.VerifyPublishWasCalledOnce();
         UnitOfWorkMock.VerifyTransactionWasCommitted();
+
+        DistributedLockMock.AcquiredResources.Should().Equal($"order:{order.Id}:status");
+        DistributedLockMock.ReleasedResources.Should().Equal($"order:{order.Id}:status");
     }
 
     [Fact]
@@ -82,7 +85,7 @@ public class ConfirmOrderCommandHandlerTests : ConfirmOrderCommandHandlerFixture
     {
         // Arrange
         var customerId = Guid.NewGuid();
-        var order = OrderFaker.Placed(customerId);
+        var order = OrderFaker.Create(customerId);
         OrderRepositoryMock.ConfigureGetTrackedByIdToReturn(order.Id, customerId, order);
         PublisherMock
             .Setup(p => p.Publish(It.IsAny<INotification>(), It.IsAny<CancellationToken>()))
@@ -96,5 +99,7 @@ public class ConfirmOrderCommandHandlerTests : ConfirmOrderCommandHandlerFixture
         // Assert
         await act.Should().ThrowAsync<InsufficientStockException>();
         UnitOfWorkMock.VerifyTransactionWasRolledBack();
+
+        DistributedLockMock.ReleasedResources.Should().Equal($"order:{order.Id}:status");
     }
 }

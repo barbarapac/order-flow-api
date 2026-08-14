@@ -6,10 +6,10 @@ public static class OrderFaker
 {
     public static Order Valid(Guid? customerId = null)
     {
-        return Order.Place(
+        return Order.Create(
             customerId ?? Guid.NewGuid(),
             "USD",
-            [new OrderItemDraft(Guid.NewGuid(), 10m, 2)]);
+            [new NewOrderItem(Guid.NewGuid(), 10m, 2)]);
     }
 
     public static List<Order> ManyValid(int count, Guid? customerId = null) =>

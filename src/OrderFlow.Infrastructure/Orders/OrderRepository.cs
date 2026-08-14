@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.Enums;
 using OrderFlow.Infrastructure._Shared;
 
 namespace OrderFlow.Infrastructure.Orders;

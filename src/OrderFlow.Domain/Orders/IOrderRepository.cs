@@ -1,3 +1,5 @@
+using OrderFlow.Domain.Orders.Enums;
+
 namespace OrderFlow.Domain.Orders;
 
 public interface IOrderRepository

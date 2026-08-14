@@ -1,10 +1,13 @@
+using OrderFlow.Domain.Orders.Enums;
+using OrderFlow.Domain.Orders.Events;
+
 namespace OrderFlow.Domain.Orders;
 
 public sealed class Order
 {
     public Guid Id                    { get; private set; }
     public Guid CustomerId            { get; private set; }
-    public Currency Currency          { get; private set; }
+    public ValueObjects.Currency Currency          { get; private set; }
     public OrderStatus Status         { get; private set; }
     public DateTime CreatedAtUtc      { get; private set; }
     public DateTime? ConfirmedAtUtc   { get; private set; }
@@ -16,7 +19,7 @@ public sealed class Order
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
     private readonly List<OrderItem> _items = [];
 
-    private Order(Guid customerId, Currency currency)
+    private Order(Guid customerId, ValueObjects.Currency currency)
     {
         Id           = Guid.NewGuid();
         CustomerId   = customerId;
@@ -25,11 +28,11 @@ public sealed class Order
         CreatedAtUtc = DateTime.UtcNow;
     }
 
-    public static Order Place(Guid customerId, string currencyRaw, IReadOnlyCollection<OrderItemDraft> items)
+    public static Order Create(Guid customerId, string currencyRaw, IReadOnlyCollection<NewOrderItem> items)
     {
         OrderGuard.HasItems(items);
 
-        var order = new Order(customerId, Currency.Create(currencyRaw));
+        var order = new Order(customerId, ValueObjects.Currency.Create(currencyRaw));
 
         foreach (var item in items)
         {
@@ -40,14 +43,28 @@ public sealed class Order
         return order;
     }
 
-    public OrderConfirmedDomainEvent Confirm()
+    public OrderConfirmed Confirm()
     {
         OrderGuard.CanConfirm(Status);
 
         Status         = OrderStatus.Confirmed;
         ConfirmedAtUtc = DateTime.UtcNow;
 
-        return new OrderConfirmedDomainEvent(
+        return new OrderConfirmed(
             Id, _items.Select(i => new OrderStockAdjustment(i.ProductId, i.Quantity)).ToList());
+    }
+
+    public OrderCanceled? Cancel()
+    {
+        OrderGuard.CanCancel(Status);
+
+        var shouldReleaseStock = IsConfirmed;
+
+        Status        = OrderStatus.Canceled;
+        CanceledAtUtc = DateTime.UtcNow;
+
+        return shouldReleaseStock
+            ? new OrderCanceled(Id, _items.Select(i => new OrderStockAdjustment(i.ProductId, i.Quantity)).ToList())
+            : null;
     }
 }

@@ -1,6 +1,6 @@
 using FluentAssertions;
 using OrderFlow.Application.Products.OrderConfirmed;
-using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.Events;
 using OrderFlow.UnitTest.Application.Products.DecrementStock.Fixtures;
 
 namespace OrderFlow.UnitTest.Application.Products.DecrementStock;
@@ -14,7 +14,7 @@ public class OrderConfirmedEventHandlerTests : OrderConfirmedDomainEventHandlerF
         var firstProductId = Guid.Parse("00000000-0000-0000-0000-000000000001");
         var secondProductId = Guid.Parse("00000000-0000-0000-0000-000000000002");
 
-        var notification = new OrderConfirmedDomainEvent(Guid.NewGuid(),
+        var notification = new OrderConfirmed(Guid.NewGuid(),
         [
             new OrderStockAdjustment(secondProductId, 3),
             new OrderStockAdjustment(firstProductId, 2)
@@ -41,7 +41,7 @@ public class OrderConfirmedEventHandlerTests : OrderConfirmedDomainEventHandlerF
         var sufficientProductId = Guid.NewGuid();
         var insufficientProductId = Guid.NewGuid();
 
-        var notification = new OrderConfirmedDomainEvent(Guid.NewGuid(),
+        var notification = new OrderConfirmed(Guid.NewGuid(),
         [
             new OrderStockAdjustment(sufficientProductId, 1),
             new OrderStockAdjustment(insufficientProductId, 5)

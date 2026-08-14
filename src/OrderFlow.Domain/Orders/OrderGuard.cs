@@ -1,12 +1,15 @@
+using OrderFlow.Domain.Orders.Enums;
+using OrderFlow.Domain.Orders.Exceptions;
+
 namespace OrderFlow.Domain.Orders;
 
 internal static class OrderGuard
 {
-    public static void HasItems(IReadOnlyCollection<OrderItemDraft> items)
+    public static void HasItems(IReadOnlyCollection<NewOrderItem> items)
     {
         if (items.Count == 0)
         {
-            throw OrderDomainException.NoItems();
+            throw OrderException.NoItems();
         }
     }
 
@@ -14,7 +17,7 @@ internal static class OrderGuard
     {
         if (quantity <= 0)
         {
-            throw OrderDomainException.InvalidQuantity(quantity);
+            throw OrderException.InvalidQuantity(quantity);
         }
     }
 
@@ -22,7 +25,15 @@ internal static class OrderGuard
     {
         if (status != OrderStatus.Placed)
         {
-            throw OrderDomainException.InvalidTransition(status, OrderStatus.Confirmed);
+            throw OrderException.InvalidTransition(status, OrderStatus.Confirmed);
+        }
+    }
+
+    public static void CanCancel(OrderStatus status)
+    {
+        if (status == OrderStatus.Canceled)
+        {
+            throw OrderException.InvalidTransition(status, OrderStatus.Canceled);
         }
     }
 }

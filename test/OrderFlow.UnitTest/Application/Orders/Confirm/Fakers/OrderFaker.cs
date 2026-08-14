@@ -4,17 +4,17 @@ namespace OrderFlow.UnitTest.Application.Orders.Confirm.Fakers;
 
 public static class OrderFaker
 {
-    public static Order Placed(Guid? customerId = null, IReadOnlyCollection<OrderItemDraft>? items = null)
+    public static Order Create(Guid? customerId = null, IReadOnlyCollection<NewOrderItem>? items = null)
     {
-        return Order.Place(
+        return Order.Create(
             customerId ?? Guid.NewGuid(),
             "USD",
-            items ?? [new OrderItemDraft(Guid.NewGuid(), 10m, 2)]);
+            items ?? [new NewOrderItem(Guid.NewGuid(), 10m, 2)]);
     }
 
-    public static Order Confirmed(Guid? customerId = null, IReadOnlyCollection<OrderItemDraft>? items = null)
+    public static Order Confirmed(Guid? customerId = null, IReadOnlyCollection<NewOrderItem>? items = null)
     {
-        var order = Placed(customerId, items);
+        var order = Create(customerId, items);
         order.Confirm();
         return order;
     }

@@ -77,6 +77,19 @@ lock que já expirou e foi readquirido por outro processo.
 aqui — seria complexidade sem benefício real. `StackExchange.Redis` já expõe os primitivos necessários
 (`StringSetAsync`, `ScriptEvaluateAsync`) e suas interfaces (`IConnectionMultiplexer`, `IDatabase`) são
 diretamente mockáveis em teste, sem depender de um Redis real rodando.
+**Extensão — lock por pedido em `Confirm`/`Cancel`**: além do lock por produto (`product:{id}:stock`, adquirido
+dentro do `NotificationHandler` para proteger a baixa/devolução de estoque), `ConfirmOrderCommandHandler` e
+`CancelOrderCommandHandler` adquirem um segundo lock, `order:{orderId}:status`, logo no início do `Handle` —
+antes até da leitura do pedido — e o mantêm (`await using`) até o fim do método. **Motivo**: a checagem de
+idempotência (`order.IsConfirmed`/`order.IsCanceled`) é um read seguido de decisão ("já está nesse estado? não
+faz nada") que só é seguro se nada mais puder transicionar o mesmo pedido entre a leitura e a escrita — sem esse
+lock, duas requisições concorrentes para `Confirm` e `Cancel` do mesmo pedido poderiam ambas ler o estado antigo,
+ambas decidir prosseguir, e disparar os dois `NotificationHandler`s de estoque (baixa E devolução) para o mesmo
+pedido. Com o lock, a segunda requisição só lê o pedido depois que a primeira já fez commit/rollback e liberou o
+lock, então ou vê o novo estado (idempotência funciona) ou ainda o antigo (nenhuma concorrência real havia).
+Validado manualmente disparando `Confirm` e `Cancel` em paralelo para o mesmo pedido: a chamada que perde a
+corrida do lock lê o estado já transicionado pela vencedora e recebe `409 order.invalid_transition` (via
+`OrderGuard`) em vez de processar uma transição inválida.
 
 ## ADR-006 — `Product` anêmico, `Order` rico
 
@@ -177,7 +190,19 @@ com `Result<T>`.
       `InsufficientStockException` (`Application`, `ErrorType.Conflict`) e reverte a transação inteira — validado
       de ponta a ponta contra Postgres + Redis reais via Docker (confirmação simples, idempotência, 404, e disputa
       de estoque concorrente entre dois pedidos `Placed` do mesmo produto).
-- [ ] **Fase 5** — `POST /orders/{id}/cancel`: idempotência, devolução condicional de estoque.
+- [x] **Fase 5** — `POST /orders/{id}/cancel`: `Order.Cancel()` idempotente (no-op silencioso se já `Canceled`,
+      via `OrderGuard.CanCancel`), válido a partir de `Placed` ou `Confirmed`; só retorna `OrderCanceledDomainEvent`
+      (para devolução de estoque) quando a transição parte de `Confirmed` — de `Placed` não há nada a devolver, o
+      método retorna `null` e `CancelOrderCommandHandler` simplesmente não publica evento; `OrderCanceledEventHandler`
+      adquire os mesmos locks distribuídos Redis por `product:{id}:stock` (ProductIds ordenados) e roda
+      `IProductRepository.IncrementStockAsync` (`UPDATE ... SET available_quantity += @qty`, sem condição — devolução
+      de estoque não tem risco de ficar negativo) para cada item; `ConfirmOrderCommandHandler` e
+      `CancelOrderCommandHandler` também adquirem um lock distribuído por pedido (`order:{orderId}:status`, ver
+      extensão do ADR-005) que protege a checagem de idempotência + transição contra `Confirm`/`Cancel` concorrentes
+      no mesmo pedido — validado de ponta a ponta contra Postgres + Redis reais via Docker (cancelamento de `Placed`
+      sem alterar estoque, cancelamento de `Confirmed` devolvendo estoque, idempotência sem devolução duplicada,
+      404 para pedido inexistente, e `Confirm`/`Cancel` disparados em paralelo no mesmo pedido sendo serializados
+      pelo lock).
 - [ ] **Fase 6** — Testes (xUnit): regras de domínio, casos de borda de concorrência, handlers de Application.
       Auditoria de `CancellationToken` end-to-end.
 - [ ] **Fase 7** — README final, revisão de `docker compose up`, checklist do enunciado.

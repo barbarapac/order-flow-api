@@ -1,5 +1,6 @@
 using Moq;
 using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.Enums;
 
 namespace OrderFlow.UnitTest.Application.Orders.GetAll.Mocks;
 

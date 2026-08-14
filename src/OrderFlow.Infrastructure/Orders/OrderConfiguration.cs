@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.ValueObjects;
 
 namespace OrderFlow.Infrastructure.Orders;
 

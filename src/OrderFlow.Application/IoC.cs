@@ -1,5 +1,4 @@
 using FluentValidation;
-using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using OrderFlow.Application._Shared;
 

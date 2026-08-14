@@ -18,8 +18,9 @@ Documentação de arquitetura completa — leia antes de decisões estruturais n
 - `docs/decisions.md` — ADRs numerados (ADR-001 a ADR-011) com o "porquê" de cada decisão + roadmap de fases
 - `docs/error-handling.md` — taxonomia de erros e mapeamento para `ProblemDetails`
 
-**Status atual**: Fases 1 e 2 concluídas (cadastro/login de usuário, JWT, tratamento de erro global; CRUD completo
-de `Product`). `Order` (Fases 3–6 do roadmap em `docs/decisions.md`) ainda não existe no código.
+**Status atual**: Fases 1 a 5 concluídas (cadastro/login de usuário, JWT, tratamento de erro global; CRUD completo
+de `Product`; `Order` com `Place`/`Confirm`/`Cancel`, baixa e devolução de estoque via lock distribuído Redis).
+Faltam Fases 6–7 do roadmap em `docs/decisions.md` (auditoria de testes/`CancellationToken` e README final).
 
 ## Comandos
 

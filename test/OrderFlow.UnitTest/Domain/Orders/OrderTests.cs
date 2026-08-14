@@ -1,23 +1,26 @@
 using FluentAssertions;
 using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.Enums;
+using OrderFlow.Domain.Orders.Events;
+using OrderFlow.Domain.Orders.Exceptions;
 
 namespace OrderFlow.UnitTest.Domain.Orders;
 
 public class OrderTests
 {
     [Fact]
-    public void Place_WithValidData_CreatesOrderAsPlaced()
+    public void Create_WithValidData_CreatesOrderAsPlaced()
     {
         // Arrange
         var customerId = Guid.NewGuid();
-        var items = new List<OrderItemDraft>
+        var items = new List<NewOrderItem>
         {
             new(Guid.NewGuid(), 10m, 2),
             new(Guid.NewGuid(), 5m, 3)
         };
 
         // Act
-        var order = Order.Place(customerId, "USD", items);
+        var order = Order.Create(customerId, "USD", items);
 
         // Assert
         order.Id.Should().NotBeEmpty();
@@ -32,51 +35,51 @@ public class OrderTests
     }
 
     [Fact]
-    public void Place_WithoutItems_ThrowsDomainException()
+    public void Create_WithoutItems_ThrowsDomainException()
     {
         // Arrange
-        var act = () => Order.Place(Guid.NewGuid(), "USD", []);
+        var act = () => Order.Create(Guid.NewGuid(), "USD", []);
 
         // Act & Assert
-        act.Should().Throw<OrderDomainException>()
+        act.Should().Throw<OrderException>()
             .Which.Code.Should().Be("order.no_items");
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void Place_WithInvalidQuantity_ThrowsDomainException(int invalidQuantity)
+    public void Create_WithInvalidQuantity_ThrowsDomainException(int invalidQuantity)
     {
         // Arrange
-        var items = new List<OrderItemDraft> { new(Guid.NewGuid(), 10m, invalidQuantity) };
-        var act = () => Order.Place(Guid.NewGuid(), "USD", items);
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, invalidQuantity) };
+        var act = () => Order.Create(Guid.NewGuid(), "USD", items);
 
         // Act & Assert
-        act.Should().Throw<OrderDomainException>()
+        act.Should().Throw<OrderException>()
             .Which.Code.Should().Be("order.invalid_quantity");
     }
 
     [Fact]
-    public void Place_WithInvalidCurrency_ThrowsDomainException()
+    public void Create_WithInvalidCurrency_ThrowsDomainException()
     {
         // Arrange
-        var items = new List<OrderItemDraft> { new(Guid.NewGuid(), 10m, 1) };
-        var act = () => Order.Place(Guid.NewGuid(), "US", items);
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 1) };
+        var act = () => Order.Create(Guid.NewGuid(), "US", items);
 
         // Act & Assert
-        act.Should().Throw<OrderDomainException>()
+        act.Should().Throw<OrderException>()
             .Which.Code.Should().Be("order.invalid_currency");
     }
 
     [Fact]
-    public void Place_TwoOrders_GetDifferentIds()
+    public void Create_TwoOrders_GetDifferentIds()
     {
         // Arrange
-        var items = new List<OrderItemDraft> { new(Guid.NewGuid(), 10m, 1) };
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 1) };
 
         // Act
-        var first  = Order.Place(Guid.NewGuid(), "USD", items);
-        var second = Order.Place(Guid.NewGuid(), "USD", items);
+        var first  = Order.Create(Guid.NewGuid(), "USD", items);
+        var second = Order.Create(Guid.NewGuid(), "USD", items);
 
         // Assert
         first.Id.Should().NotBe(second.Id);
@@ -86,8 +89,8 @@ public class OrderTests
     public void Confirm_WhenPlaced_TransitionsToConfirmedAndReturnsEvent()
     {
         // Arrange
-        var items = new List<OrderItemDraft> { new(Guid.NewGuid(), 10m, 2), new(Guid.NewGuid(), 5m, 3) };
-        var order = Order.Place(Guid.NewGuid(), "USD", items);
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 2), new(Guid.NewGuid(), 5m, 3) };
+        var order = Order.Create(Guid.NewGuid(), "USD", items);
 
         // Act
         var domainEvent = order.Confirm();
@@ -105,15 +108,69 @@ public class OrderTests
     public void Confirm_WhenAlreadyConfirmed_ThrowsDomainException()
     {
         // Arrange
-        var items = new List<OrderItemDraft> { new(Guid.NewGuid(), 10m, 1) };
-        var order = Order.Place(Guid.NewGuid(), "USD", items);
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 1) };
+        var order = Order.Create(Guid.NewGuid(), "USD", items);
         order.Confirm();
 
         // Act
         var act = () => order.Confirm();
 
         // Assert
-        act.Should().Throw<OrderDomainException>()
+        act.Should().Throw<OrderException>()
+            .Which.Code.Should().Be("order.invalid_transition");
+    }
+
+    [Fact]
+    public void Cancel_WhenPlaced_TransitionsToCanceledAndReturnsNoEvent()
+    {
+        // Arrange
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 2) };
+        var order = Order.Create(Guid.NewGuid(), "USD", items);
+
+        // Act
+        var domainEvent = order.Cancel();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Canceled);
+        order.CanceledAtUtc.Should().NotBeNull();
+        order.CanceledAtUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        domainEvent.Should().BeNull();
+    }
+
+    [Fact]
+    public void Cancel_WhenConfirmed_TransitionsToCanceledAndReturnsEventToReleaseStock()
+    {
+        // Arrange
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 2), new(Guid.NewGuid(), 5m, 3) };
+        var order = Order.Create(Guid.NewGuid(), "USD", items);
+        order.Confirm();
+
+        // Act
+        var domainEvent = order.Cancel();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Canceled);
+        order.CanceledAtUtc.Should().NotBeNull();
+
+        domainEvent.Should().NotBeNull();
+        domainEvent!.OrderId.Should().Be(order.Id);
+        domainEvent.Items.Should().BeEquivalentTo(items.Select(i => new OrderStockAdjustment(i.ProductId, i.Quantity)));
+    }
+
+    [Fact]
+    public void Cancel_WhenAlreadyCanceled_ThrowsDomainException()
+    {
+        // Arrange
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 1) };
+        var order = Order.Create(Guid.NewGuid(), "USD", items);
+        order.Cancel();
+
+        // Act
+        var act = () => order.Cancel();
+
+        // Assert
+        act.Should().Throw<OrderException>()
             .Which.Code.Should().Be("order.invalid_transition");
     }
 }

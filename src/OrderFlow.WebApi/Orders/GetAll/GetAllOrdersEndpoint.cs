@@ -2,7 +2,7 @@ using System.Security.Claims;
 using Mediator;
 using OrderFlow.Application._Shared;
 using OrderFlow.Application.Orders.GetAll;
-using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.Enums;
 using OrderFlow.WebApi._Shared;
 
 namespace OrderFlow.WebApi.Orders.GetAll;

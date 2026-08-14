@@ -36,4 +36,13 @@ public sealed class ProductRepository(OrderFlowDbContext dbContext) : IProductRe
                 setters => setters.SetProperty(p => p.AvailableQuantity, p => p.AvailableQuantity - quantity),
                 cancellationToken);
     }
+
+    public async Task<int> IncrementStockAsync(Guid productId, int quantity, CancellationToken cancellationToken)
+    {
+        return await dbContext.Products
+            .Where(p => p.Id == productId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(p => p.AvailableQuantity, p => p.AvailableQuantity + quantity),
+                cancellationToken);
+    }
 }

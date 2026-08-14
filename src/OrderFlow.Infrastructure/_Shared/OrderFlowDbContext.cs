@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using OrderFlow.Domain._Shared;
 using OrderFlow.Domain.Orders;
 using OrderFlow.Domain.Products;
 using OrderFlow.Domain.Users;

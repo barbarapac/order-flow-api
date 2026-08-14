@@ -1,6 +1,7 @@
 using FluentAssertions;
 using OrderFlow.Domain._Shared;
-using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.Exceptions;
+using OrderFlow.Domain.Orders.ValueObjects;
 
 namespace OrderFlow.UnitTest.Domain.Orders;
 
@@ -31,7 +32,7 @@ public class CurrencyTests
         var act = () => Currency.Create(raw);
 
         // Act & Assert
-        act.Should().Throw<OrderDomainException>()
+        act.Should().Throw<OrderException>()
             .Which.Code.Should().Be("order.invalid_currency");
     }
 
@@ -42,7 +43,7 @@ public class CurrencyTests
         var act = () => Currency.Create("XX");
 
         // Act & Assert
-        act.Should().Throw<OrderDomainException>()
+        act.Should().Throw<OrderException>()
             .Which.Type.Should().Be(ErrorType.Validation);
     }
 

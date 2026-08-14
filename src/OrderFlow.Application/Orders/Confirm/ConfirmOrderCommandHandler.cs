@@ -8,11 +8,14 @@ namespace OrderFlow.Application.Orders.Confirm;
 public sealed class ConfirmOrderCommandHandler(
     IOrderRepository orderRepository,
     IUnitOfWork unitOfWork,
-    IPublisher publisher)
+    IPublisher publisher,
+    IDistributedLock distributedLock)
     : ICommandHandler<ConfirmOrderCommand, Result<ConfirmOrderResponse>>
 {
     public async ValueTask<Result<ConfirmOrderResponse>> Handle(ConfirmOrderCommand request, CancellationToken cancellationToken)
     {
+        await using var orderLock = await distributedLock.AcquireAsync($"order:{request.OrderId}:status", cancellationToken);
+
         var order = await orderRepository.GetTrackedByIdAsync(request.OrderId, request.CustomerId, cancellationToken);
 
         if (order is null)

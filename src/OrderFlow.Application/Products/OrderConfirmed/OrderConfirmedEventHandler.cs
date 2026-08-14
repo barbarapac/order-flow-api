@@ -1,6 +1,5 @@
 using Mediator;
 using OrderFlow.Application._Shared;
-using OrderFlow.Domain.Orders;
 using OrderFlow.Domain.Products;
 
 namespace OrderFlow.Application.Products.OrderConfirmed;
@@ -8,9 +7,9 @@ namespace OrderFlow.Application.Products.OrderConfirmed;
 public sealed class OrderConfirmedEventHandler(
     IProductRepository productRepository,
     IDistributedLock distributedLock)
-    : INotificationHandler<OrderConfirmedDomainEvent>
+    : INotificationHandler<Domain.Orders.Events.OrderConfirmed>
 {
-    public async ValueTask Handle(OrderConfirmedDomainEvent notification, CancellationToken cancellationToken)
+    public async ValueTask Handle(Domain.Orders.Events.OrderConfirmed notification, CancellationToken cancellationToken)
     {
         var items = notification.Items.OrderBy(i => i.ProductId).ToList();
         var locks = new List<IAsyncDisposable>();

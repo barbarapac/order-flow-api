@@ -1,6 +1,6 @@
 using Mediator;
 using OrderFlow.Application._Shared;
-using OrderFlow.Domain.Orders;
+using OrderFlow.Domain.Orders.Enums;
 
 namespace OrderFlow.Application.Orders.GetAll;
 
