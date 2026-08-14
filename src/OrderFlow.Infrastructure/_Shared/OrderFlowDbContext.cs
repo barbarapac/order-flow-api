@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Domain._Shared;
+using OrderFlow.Domain.Orders;
 using OrderFlow.Domain.Products;
 using OrderFlow.Domain.Users;
 
@@ -9,6 +10,7 @@ public sealed class OrderFlowDbContext(DbContextOptions<OrderFlowDbContext> opti
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Order> Orders => Set<Order>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

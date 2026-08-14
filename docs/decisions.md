@@ -158,7 +158,7 @@ com `Result<T>`.
       obrigatório, `UnitPrice > 0`, `AvailableQuantity >= 0`); `ProductConfiguration` + migration `AddProduct` —
       validado de ponta a ponta contra Postgres real via Docker (CRUD completo, 404 após delete, 400 de
       validação).
-- [ ] **Fase 3** — `POST /orders` (`Place`): validação de itens/estoque, `Total`, `GET /orders/{id}`,
+- [x] **Fase 3** — `POST /orders` (`Place`): validação de itens/estoque, `Total`, `GET /orders/{id}`,
       `GET /orders` (paginação + filtros).
 - [ ] **Fase 4** — `POST /orders/{id}/confirm`: evento de domínio, lock distribuído Redis, update condicional
       transacional, idempotência.
