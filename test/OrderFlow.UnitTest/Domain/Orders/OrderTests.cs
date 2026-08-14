@@ -121,6 +121,23 @@ public class OrderTests
     }
 
     [Fact]
+    public void Confirm_WhenCanceled_ThrowsDomainException()
+    {
+        // Arrange: simula a corrida entre Confirm e Cancel concorrentes no mesmo pedido —
+        // o Cancel venceu, e o Confirm chega depois já com o pedido em estado terminal.
+        var items = new List<NewOrderItem> { new(Guid.NewGuid(), 10m, 1) };
+        var order = Order.Create(Guid.NewGuid(), "USD", items);
+        order.Cancel();
+
+        // Act
+        var act = () => order.Confirm();
+
+        // Assert
+        act.Should().Throw<OrderException>()
+            .Which.Code.Should().Be("order.invalid_transition");
+    }
+
+    [Fact]
     public void Cancel_WhenPlaced_TransitionsToCanceledAndReturnsNoEvent()
     {
         // Arrange

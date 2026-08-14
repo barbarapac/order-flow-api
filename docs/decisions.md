@@ -203,6 +203,18 @@ com `Result<T>`.
       sem alterar estoque, cancelamento de `Confirmed` devolvendo estoque, idempotência sem devolução duplicada,
       404 para pedido inexistente, e `Confirm`/`Cancel` disparados em paralelo no mesmo pedido sendo serializados
       pelo lock).
-- [ ] **Fase 6** — Testes (xUnit): regras de domínio, casos de borda de concorrência, handlers de Application.
-      Auditoria de `CancellationToken` end-to-end.
+- [x] **Fase 6** — Testes (xUnit): 138 testes cobrindo regras de domínio (`Order`/`OrderGuard`, incluindo a
+      transição inválida `Confirm` a partir de `Canceled`), handlers de Application (`Place`/`Confirm`/`Cancel`,
+      CRUD de `Product`, `Register`/`Login`), casos de borda de concorrência (idempotência de `Confirm`/`Cancel`,
+      corrida `Cancel` vencendo `Confirm` no mesmo pedido, falha parcial de estoque multi-item com liberação de
+      todos os locks, polling/cancelamento do `RedisDistributedLock`) e infraestrutura (`JwtTokenGenerator`,
+      `PasswordHasher`, `ValidationBehavior`). Auditoria de `CancellationToken` end-to-end em todos os
+      handlers/repositórios/endpoints: propagação correta confirmada em toda a cadeia; **um problema real
+      encontrado e corrigido** — `ConfirmOrderCommandHandler`/`CancelOrderCommandHandler` faziam
+      `RollbackTransactionAsync(cancellationToken)` dentro do `catch` reaproveitando o token da requisição; se o
+      cliente já tivesse desconectado (token cancelado) no momento da falha, o rollback lançava
+      `OperationCanceledException` antes de tocar o banco, mascarando a exception original e deixando a transação
+      aberta. Corrigido usando `CancellationToken.None` explicitamente nesse `catch` — rollback é limpeza
+      obrigatória e não deve respeitar o cancelamento que originou a falha — com teste de regressão para os dois
+      handlers.
 - [ ] **Fase 7** — README final, revisão de `docker compose up`, checklist do enunciado.

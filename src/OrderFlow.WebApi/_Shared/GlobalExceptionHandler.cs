@@ -9,6 +9,12 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
+        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("Requisição cancelada pelo cliente: {TraceId}", httpContext.TraceIdentifier);
+            return true;
+        }
+
         var (statusCode, title, extensions) = Describe(exception);
 
         if (statusCode == StatusCodes.Status500InternalServerError)

@@ -122,4 +122,34 @@ public class CancelOrderCommandHandlerTests : CancelOrderCommandHandlerFixture
 
         DistributedLockMock.ReleasedResources.Should().Equal($"order:{order.Id}:status");
     }
+
+    [Fact]
+    public async Task Handle_WhenRequestIsAlreadyCanceledAndPublishThrows_StillRollsBackTransaction()
+    {
+        // Arrange: regressão para o bug em que o rollback usava o mesmo cancellationToken da
+        // requisição — se ele já chegasse cancelado (cliente desconectou), RollbackTransactionAsync
+        // lançava OperationCanceledException antes de tocar o banco, mascarando a exception
+        // original e deixando a transação aberta. O rollback deve sempre rodar com um token não
+        // cancelado.
+        var customerId = Guid.NewGuid();
+        var order = OrderFaker.Confirmed(customerId);
+        OrderRepositoryMock.ConfigureGetTrackedByIdToReturn(order.Id, customerId, order);
+        PublisherMock
+            .Setup(p => p.Publish(It.IsAny<INotification>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask(Task.FromException(new InvalidOperationException("boom"))));
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var command = new CancelOrderCommand(order.Id, customerId);
+
+        // Act
+        var act = () => Handler.Handle(command, cts.Token).AsTask();
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        UnitOfWorkMock.Verify(
+            u => u.RollbackTransactionAsync(It.Is<CancellationToken>(t => !t.IsCancellationRequested)),
+            Times.Once);
+    }
 }

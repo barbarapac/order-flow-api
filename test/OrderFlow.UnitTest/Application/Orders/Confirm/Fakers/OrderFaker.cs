@@ -18,4 +18,11 @@ public static class OrderFaker
         order.Confirm();
         return order;
     }
+
+    public static Order Canceled(Guid? customerId = null, IReadOnlyCollection<NewOrderItem>? items = null)
+    {
+        var order = Create(customerId, items);
+        order.Cancel();
+        return order;
+    }
 }

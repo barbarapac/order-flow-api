@@ -37,6 +37,11 @@ flowchart TD
 `Result<T>.Failure` (usado pelos handlers para "recurso não encontrado", ver ADR-007) **não é uma exception** —
 é tratado à parte, direto no endpoint (seção 5).
 
+`OperationCanceledException` (ex.: cliente fecha a conexão/timeout do browser durante um `Confirm`/`Cancel` em
+transação) também não passa pela tabela `ErrorType → status`: não é erro de servidor nem de negócio, é o cliente
+indo embora. `GlobalExceptionHandler` reconhece esse caso (`httpContext.RequestAborted.IsCancellationRequested`)
+e retorna `true` sem escrever `ProblemDetails` nem logar como erro — ver seção 4.
+
 ## 3. Tabela única `ErrorType` → status HTTP
 
 Reaproveitada tanto pelo `GlobalExceptionHandler` (para `AppException`) quanto pelo mapeamento de `Result<T>` no
@@ -74,6 +79,15 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
+        // Cliente desconectou/cancelou a requisição — não é uma falha do servidor, e escrever
+        // resposta numa conexão já encerrada é um no-op. Tratado à parte para não cair no
+        // branch "500 inesperado" nem poluir os logs com LogError.
+        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("Requisição cancelada pelo cliente: {TraceId}", httpContext.TraceIdentifier);
+            return true;
+        }
+
         var (statusCode, title, extensions) = exception switch
         {
             FluentValidation.ValidationException validationEx => (

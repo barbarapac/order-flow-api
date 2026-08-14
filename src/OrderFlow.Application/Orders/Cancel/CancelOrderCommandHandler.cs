@@ -43,7 +43,7 @@ public sealed class CancelOrderCommandHandler(
         }
         catch
         {
-            await unitOfWork.RollbackTransactionAsync(cancellationToken);
+            await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
             throw;
         }
 
