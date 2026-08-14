@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orderflow-postgres
+    environment:
+      POSTGRES_DB: orderflow
+      POSTGRES_USER: orderflow
+      POSTGRES_PASSWORD: orderflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - orderflow-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderflow -d orderflow"]
+      interval: 5s
+      timeout: 5s
+      
+      retries: 10
+
+#  api:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    container_name: orderflow-api
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#    environment:
+#      ASPNETCORE_ENVIRONMENT: Docker
+#      ApplyMigrationsOnStartup: "true"
+#      ConnectionStrings__OrderFlowDb: "Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=orderflow"
+#      Jwt__Issuer: "OrderFlow.Api"
+#      Jwt__Audience: "OrderFlow.Client"
+#      Jwt__SigningKey: "docker-compose-dev-signing-key-please-change-32B+"
+#      Jwt__ExpirationMinutes: "60"
+#    ports:
+#      - "8080:8080"
+
+volumes:
+  orderflow-postgres-data:

@@ -1,8 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "ywwee7y1pvo=",
+  "dgSpecHash": "jw0oNcC2lQs=",
   "success": true,
   "projectFilePath": "C:\\Desafios\\order-flow-api\\src\\OrderFlow.Domain\\OrderFlow.Domain.csproj",
-  "expectedPackageFiles": [],
+  "expectedPackageFiles": [
+    "C:\\Users\\babia\\.nuget\\packages\\mediatr.contracts\\2.0.1\\mediatr.contracts.2.0.1.nupkg.sha512"
+  ],
   "logs": []
 }
