@@ -159,6 +159,108 @@ que a mesma lógica `ErrorType → status` se duplique entre o handler de except
 com `Result<T>`.
 **Resolve**: o item em aberto deixado no ADR-007.
 
+## ADR-012 — Dapper no read-side das queries, SQL dentro do próprio `QueryHandler`; EF Core continua dono da escrita
+
+**Decisão**: as 4 queries de leitura (`GetById`/`GetAll` de `Product` e `Order`) passam a usar Dapper direto
+dentro do próprio `QueryHandler` (`Application`), sem repositório por agregado. Cada slice ganha uma classe
+`Sql` interna (`Products/GetById/Sql.cs`, `Products/GetAll/Sql.cs`, `Orders/GetById/Sql.cs`,
+`Orders/GetAll/Sql.cs`) que concentra os textos de SQL e a montagem de parâmetros — o `QueryHandler` fica só com
+a orquestração (chamar `Sql.X` através de um `IQueryExecutor`, mapear o resultado). Cada handler recebe um
+`IQueryExecutor` (definido na `Application`, três métodos genéricos — `QuerySingleOrDefaultAsync<T>`,
+`QueryAsync<T>`, `QueryCountAndListAsync<T>` — todos recebendo `string sql` + `object? parameters`), implementado
+por `DapperQueryExecutor` na `Infrastructure` (abre a conexão via `NpgsqlDataSource` e chama o Dapper). O
+`QueryHandler` nunca toca em `DbConnection`/Dapper diretamente. `IProductRepository`/`IOrderRepository` (EF,
+`Domain`) não mudam e continuam sendo a única via de acesso a dado para os Commands (`Place`/`Confirm`/`Cancel`
+de `Order`, CRUD de `Product`).
+**Motivo**: essas 4 queries são pass-through simples — o `QueryHandler` só busca e devolve, sem lógica de
+negócio no meio. Um repositório por agregado (`IProductReadRepository`/`ProductReadRepository`, tentado antes
+deste ADR) criava uma interface com exatamente uma implementação possível, só para mover a mesma SQL uma camada
+pra baixo; sem outro consumidor nem outra implementação prevista, a indireção não pagava seu custo. `Order`
+tem `Items` (1-N) e dois campos calculados em memória (`Order.Total`, `OrderItem.LineTotal`, nenhum é coluna
+persistida) — a lógica de agrupamento fica no mesmo arquivo do caso de uso que a consome, sem espalhar por duas
+camadas.
+**Trade-off aceito conscientemente — SQL na `Application`**: isso quebra o isolamento que o projeto mantém em
+todo o resto do código, onde só a `Infrastructure` sabe que o banco é Postgres (EF configs, connection string,
+sintaxe SQL). As classes `Sql` de cada slice citam sintaxe específica do dialeto (`OFFSET/LIMIT`, `ANY(@array)`)
+e o projeto referencia o pacote `Dapper` diretamente também no `OrderFlow.Application.csproj` (não só no
+`Infrastructure`). Escolha deliberada em favor de menos indireção — ver "alternativas descartadas" abaixo.
+**Teste unitário via `IQueryExecutor` mockável**: os métodos do Dapper (`QueryAsync`, `QueryMultipleAsync`) são
+extension methods sobre `DbConnection`/`IDbConnection` — não são mockáveis com Moq (tentam executar de verdade
+contra a conexão). Por isso o handler nunca chama Dapper diretamente; ele depende só de `IQueryExecutor`, uma
+interface comum (não específica de agregado) que Moq mocka normalmente. Os testes dos 4 `QueryHandler`s mockam
+`IQueryExecutor.QuerySingleOrDefaultAsync<TResponse>`/`QueryAsync<TResponse>`/`QueryCountAndListAsync<TResponse>`
+com o tipo de retorno específico de cada handler (Moq suporta setup de método genérico fechado num tipo
+concreto), sem se importar com o texto exato da SQL passada — o que valida é a orquestração do handler
+(mapeamento, cálculo de `Total`/`LineTotal`, tratamento de "não encontrado"), não a query em si. Isso exige que
+`OrderItemRow` (o tipo auxiliar de `GetAllOrdersQueryHandler` que carrega `OrderId` pra agrupar itens por
+pedido) seja `public`, não `private`/`internal` — o mock do teste precisa poder nomear esse tipo genérico
+(`QueryAsync<OrderItemRow>`) de fora do assembly `Application`. Cogitou-se `internal` + `InternalsVisibleTo`
+pra "esconder" o tipo do resto do mundo mantendo-o visível só pro teste, mas isso não protege invariante
+nenhuma (é um DTO plano, sem comportamento, igual a todo `Response`/`*Row` do projeto) — só adicionava uma
+camada de configuração pra simular um encapsulamento que não fazia falta. `public` simples, sem
+`InternalsVisibleTo`/`AssemblyInfo.cs`, resolve com menos peça móvel.
+**Alternativas descartadas**: (1) repositório por agregado na `Application` retornando `Response` — funciona,
+mas ceremony sem benefício real pra queries pass-through; (2) sem teste algum pra esses 4 handlers, validação só
+manual via Docker — rejeitado porque o objetivo é ter cobertura automatizada com validação real dos campos do
+`Response`, não só uma checagem de fumaça; (3) testes de integração com Testcontainers (Postgres real efêmero por
+teste) — cobre o SQL de verdade, mas exige Docker rodando durante `dotnet test` e um projeto de teste separado;
+descartado porque o requisito era manter testes unitários rápidos com mock, como o resto do projeto; (4) handler
+dependendo direto da classe concreta da `Infrastructure` (sem interface) — evita interface só pra viabilizar
+mock, mas viola a direção de dependência do projeto (`Application` nunca referencia `Infrastructure`) e não
+resolveria a testabilidade mesmo assim (a classe concreta ainda chamaria Dapper por baixo).
+**Sem conexão/transação compartilhada com o EF**: nenhuma dessas 4 queries participa de transação — não há
+motivo pra `IQueryExecutor`/`DapperQueryExecutor` compartilhar `DbConnection`/`DbTransaction` com o
+`OrderFlowDbContext`. `DapperQueryExecutor` abre uma conexão nova por chamada via `NpgsqlDataSource` (singleton,
+`NpgsqlDataSourceBuilder` sobre a mesma `connectionString` do `OrderFlowDb`), independente do ciclo de vida do
+`DbContext`/`IUnitOfWork`. Se um dia surgir uma query de leitura dentro de um fluxo transacional, essa decisão
+precisa ser revisitada.
+**Mapeamento de nomes**: cada `SELECT` aliasa explicitamente toda coluna `snake_case` pro nome `PascalCase` do
+`Response`/record correspondente (`unit_price AS UnitPrice`, `created_at_utc AS CreatedAtUtc`...) — sem depender
+de `Dapper.DefaultTypeMap.MatchNamesWithUnderscores` (configuração global mutável, setada uma vez no startup e
+válida pra todo o processo). O alias explícito é redundante em texto, mas autodocumenta a query e não depende de
+nenhum estado fora do próprio `SELECT`.
+**Filtro condicional de `status` (`Orders/GetAll`)**: `Sql.Parameters` monta um `DynamicParameters` do Dapper e
+só adiciona o parâmetro `@Status` quando `request.Status` não é nulo; o `WHERE` correspondente
+(`Sql.CountAndPage`) só concatena `AND status = @Status` nesse caso. Substitui uma primeira versão que sempre
+passava `@Status` (possivelmente `null`) e usava `(@Status::text IS NULL OR status = @Status)` no SQL — o cast
+`::text` era necessário só porque o Postgres não consegue inferir o tipo de um parâmetro `NULL` sem tipagem
+explícita; com o parâmetro condicionalmente ausente, o problema desaparece.
+**Paginação**: `QueryMultipleAsync` executa o `COUNT(*)` e a página (`OFFSET`/`LIMIT`) em uma única ida ao banco
+— uma melhoria sobre o EF atual, que fazia `CountAsync` + `ToListAsync` como dois round-trips separados.
+**`Order`/`OrderItem` — 2 queries + agrupamento em memória, não JOIN**: `Order.Total` e `OrderItem.LineTotal` são
+recalculados em C# (`Sum(UnitPrice * Quantity)`) depois de buscar os itens. Em `GetAllOrdersQueryHandler`, os
+itens (`order_items`) são buscados numa query separada da página de `orders` (`WHERE order_id = ANY(@OrderIds)`,
+sintaxe nativa de array do Postgres/Npgsql) e agrupados em memória por `OrderId` — um `JOIN orders/order_items`
+quebraria o `OFFSET/LIMIT` da paginação (a contagem de linhas deixa de corresponder a pedidos) e duplicaria a
+linha do pedido por item, exatamente o problema que `AsSplitQuery()` já existia para evitar no EF.
+`GetOrderByIdQueryHandler` busca um único pedido, então dispensa o agrupamento por `OrderId`.
+**`Response` records com `init` + `with` em vez de construtor posicional, pra mapear direto sem DTO de linha
+intermediário**: `GetProductByIdResponse`, `GetAllProductsResponse`, `GetOrderByIdResponse`/`GetOrderByIdItemResponse`
+e `GetAllOrdersResponse`/`GetAllOrdersItemResponse` trocaram de record posicional pra `{ get; init; }` com
+valores default (`Items` = `[]`, `Total`/`LineTotal` = `0`). Isso muda o modo de binding do Dapper: em vez de
+casar colunas com parâmetros de um construtor (que exige *todas* as colunas presentes), o Dapper instancia via
+construtor sem parâmetros e preenche só as propriedades que batem com uma coluna retornada, deixando o resto no
+default declarado. Na prática, isso deixou `GetOrderByIdQueryHandler` mapear a query do cabeçalho **direto** pra
+`GetOrderByIdResponse` (sem precisar do `OrderHeaderRow` que a primeira versão deste ADR usava) e depois compor o
+resultado final com `header with { Total = ..., Items = ... }`; o mesmo vale pra `GetAllOrdersQueryHandler`
+(`GetAllOrdersResponse` direto, sem `OrderHeaderRow`). `OrderItemRow` (`internal`, top-level no namespace
+`Orders.GetAll` — não mais aninhado `private` dentro do handler, pra o teste conseguir referenciá-lo via
+`InternalsVisibleTo`) continua existindo — ele carrega `OrderId`, que não faz parte do contrato público
+(`GetAllOrdersItemResponse` não expõe `OrderId`), então ainda é preciso pra agrupar os itens por pedido antes de
+descartar esse campo.
+**Trade-off aceito**: perde-se a garantia do compilador de que todo campo do `Response` foi preenchido —
+com construtor posicional, esquecer `Total`/`Items` era erro de compilação; com `init` + default, um caminho de
+código que devolvesse o objeto sem compor os itens retornaria silenciosamente `Total = 0`/`Items = []` em vez de
+falhar a build. Aceito porque cada handler tem um único caminho linear até o `return`, sem ramificação que
+arrisque devolver o objeto incompleto por engano.
+**Pegadinha de schema encontrada na validação manual**: as colunas de PK (`Id`) de `products`/`orders`/
+`order_items` ficaram como `"Id"` (PascalCase, case-sensitive) no Postgres, não `id` — nenhuma `Configuration`
+(`ProductConfiguration`/`OrderConfiguration`) chama `HasColumnName` para a PK, só para as demais colunas
+(`unit_price`, `customer_id`...), então o EF preservou o case original da propriedade C# só nesse caso. Todo SQL
+Dapper que referencia a PK precisa citar `"Id"` entre aspas duplas (`SELECT "Id", ... WHERE "Id" = @Id`);
+esquecer as aspas resulta em `42703: column "id" does not exist` do Postgres — reproduzido e corrigido durante a
+validação manual contra o Postgres real (`docker compose up` + `dotnet run` local).
+
 ---
 
 ## Roadmap de implementação
@@ -217,4 +319,6 @@ com `Result<T>`.
       aberta. Corrigido usando `CancellationToken.None` explicitamente nesse `catch` — rollback é limpeza
       obrigatória e não deve respeitar o cancelamento que originou a falha — com teste de regressão para os dois
       handlers.
+- [x] **Dapper no read-side** — as 4 queries (`GetById`/`GetAll` de `Product`/`Order`) migradas de EF Core para
+      Dapper via `IProductReadRepository`/`IOrderReadRepository`; Commands seguem 100% EF Core. Ver ADR-012.
 - [ ] **Fase 7** — README final, revisão de `docker compose up`, checklist do enunciado.

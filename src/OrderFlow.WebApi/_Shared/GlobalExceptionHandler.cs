@@ -47,6 +47,11 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
     private static (int StatusCode, string Title, Dictionary<string, object?> Extensions) Describe(Exception exception) =>
         exception switch
         {
+            BadHttpRequestException badHttpRequestException => (
+                StatusCodes.Status400BadRequest,
+                "Failed to read the request body.",
+                new Dictionary<string, object?> { ["detail"] = badHttpRequestException.Message }),
+
             FluentValidation.ValidationException validationException => (
                 StatusCodes.Status400BadRequest,
                 "One or more validation errors occurred.",

@@ -5,14 +5,14 @@ namespace OrderFlow.UnitTest.Application.Orders.GetAll.Fixtures;
 
 public class GetAllOrdersQueryHandlerFixture
 {
-    protected OrderRepositoryMock OrderRepositoryMock { get; private set; }
+    protected QueryExecutorMock QueryExecutorMock { get; private set; }
 
     protected GetAllOrdersQueryHandler Handler { get; private set; }
 
     protected GetAllOrdersQueryHandlerFixture()
     {
-        OrderRepositoryMock = new OrderRepositoryMock();
+        QueryExecutorMock = new QueryExecutorMock();
 
-        Handler = new GetAllOrdersQueryHandler(OrderRepositoryMock.Object);
+        Handler = new GetAllOrdersQueryHandler(QueryExecutorMock.Object);
     }
 }

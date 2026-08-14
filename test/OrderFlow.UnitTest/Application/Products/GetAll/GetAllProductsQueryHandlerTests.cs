@@ -12,14 +12,14 @@ public class GetAllProductsQueryHandlerTests : GetAllProductsQueryHandlerFixture
     {
         // Arrange
         var products = ProductFaker.ManyValid(3);
-        ProductRepositoryMock.ConfigureGetPagedToReturn(products, 3);
+        QueryExecutorMock.ConfigureGetPagedToReturn(products, 3);
 
         // Act
         var result = await Handler.Handle(new GetAllProductsQuery(1, 20), default);
 
         // Assert
         result.Items.Should().HaveCount(3);
-        result.Items.Select(i => i.Id).Should().BeEquivalentTo(products.Select(p => p.Id));
+        result.Items.Should().BeEquivalentTo(products);
         result.TotalCount.Should().Be(3);
         result.Page.Should().Be(1);
         result.PageSize.Should().Be(20);
@@ -30,7 +30,7 @@ public class GetAllProductsQueryHandlerTests : GetAllProductsQueryHandlerFixture
     public async Task Handle_WithNoProducts_ReturnsEmptyPage()
     {
         // Arrange
-        ProductRepositoryMock.ConfigureGetPagedToReturn([], 0);
+        QueryExecutorMock.ConfigureGetPagedToReturn([], 0);
 
         // Act
         var result = await Handler.Handle(new GetAllProductsQuery(1, 20), default);

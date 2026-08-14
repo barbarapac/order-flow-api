@@ -13,7 +13,7 @@ public class GetProductByIdQueryHandlerTests : GetProductByIdQueryHandlerFixture
     {
         // Arrange
         var product = ProductFaker.Valid();
-        ProductRepositoryMock.ConfigureGetByIdToReturn(product.Id, product);
+        QueryExecutorMock.ConfigureGetByIdToReturn(product);
 
         // Act
         var result = await Handler.Handle(new GetProductByIdQuery(product.Id), default);
@@ -22,6 +22,9 @@ public class GetProductByIdQueryHandlerTests : GetProductByIdQueryHandlerFixture
         result.IsSuccess.Should().BeTrue();
         result.Value.Id.Should().Be(product.Id);
         result.Value.Name.Should().Be(product.Name);
+        result.Value.UnitPrice.Should().Be(product.UnitPrice);
+        result.Value.AvailableQuantity.Should().Be(product.AvailableQuantity);
+        result.Value.CreatedAtUtc.Should().Be(product.CreatedAtUtc);
     }
 
     [Fact]
@@ -29,7 +32,7 @@ public class GetProductByIdQueryHandlerTests : GetProductByIdQueryHandlerFixture
     {
         // Arrange
         var id = Guid.NewGuid();
-        ProductRepositoryMock.ConfigureGetByIdToReturn(id, null);
+        QueryExecutorMock.ConfigureGetByIdToReturn(null);
 
         // Act
         var result = await Handler.Handle(new GetProductByIdQuery(id), default);

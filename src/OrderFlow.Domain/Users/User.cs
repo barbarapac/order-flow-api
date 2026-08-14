@@ -2,11 +2,11 @@ namespace OrderFlow.Domain.Users;
 
 public sealed class User
 {
-    public Guid Id               { get; private set; }
-    public string Name           { get; private set; }
-    public ValueObjects.Email Email           { get; private set; }
-    public string PasswordHash   { get; private set; }
-    public DateTime CreatedAtUtc { get; private set; }
+    public Guid Id                  { get; private set; }
+    public string Name              { get; private set; }
+    public ValueObjects.Email Email { get; private set; }
+    public string PasswordHash      { get; private set; }
+    public DateTime CreatedAtUtc    { get; private set; }
 
     private User(string name, ValueObjects.Email email, string passwordHash)
     {

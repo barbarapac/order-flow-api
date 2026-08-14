@@ -34,7 +34,9 @@ public sealed class OrderConfirmedEventHandler(
         finally
         {
             foreach (var @lock in locks)
+            {
                 await @lock.DisposeAsync();
+            }
         }
     }
 }

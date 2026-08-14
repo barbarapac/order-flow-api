@@ -1,16 +1,10 @@
-using OrderFlow.Domain.Products;
-
 namespace OrderFlow.Application.Products.GetById;
 
-public sealed record GetProductByIdResponse(Guid Id, string Name, decimal UnitPrice, int AvailableQuantity, DateTime CreatedAtUtc)
+public sealed record GetProductByIdResponse
 {
-    public static GetProductByIdResponse From(Product product)
-    {
-        return new GetProductByIdResponse(
-            product.Id, 
-            product.Name, 
-            product.UnitPrice, 
-            product.AvailableQuantity, 
-            product.CreatedAtUtc);
-    }
+    public Guid Id               { get; init; }
+    public string Name           { get; init; } = string.Empty;
+    public decimal UnitPrice     { get; init; }
+    public int AvailableQuantity { get; init; }
+    public DateTime CreatedAtUtc { get; init; }
 }

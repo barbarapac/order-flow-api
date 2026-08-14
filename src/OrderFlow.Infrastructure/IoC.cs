@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using OrderFlow.Application._Shared;
 using OrderFlow.Domain.Orders;
 using OrderFlow.Domain.Products;
@@ -22,6 +23,7 @@ public static class IoC
     public static void AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         AddDbContext(services, configuration);
+        AddDapper(services, configuration);
         AddSecurity(services, configuration);
         AddRedis(services, configuration);
     }
@@ -36,6 +38,16 @@ public static class IoC
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+    }
+
+    private static void AddDapper(IServiceCollection services, IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("OrderFlowDb")
+            ?? throw new InvalidOperationException("Connection string 'OrderFlowDb' is not configured.");
+
+        services.AddSingleton(_ => new NpgsqlDataSourceBuilder(connectionString).Build());
+
+        services.AddScoped<IQueryExecutor, DapperQueryExecutor>();
     }
 
     private static void AddSecurity(IServiceCollection services, IConfiguration configuration)

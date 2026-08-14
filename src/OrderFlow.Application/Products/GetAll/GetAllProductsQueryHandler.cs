@@ -1,17 +1,19 @@
 using Mediator;
 using OrderFlow.Application._Shared;
-using OrderFlow.Domain.Products;
 
 namespace OrderFlow.Application.Products.GetAll;
 
-public sealed class GetAllProductsQueryHandler(IProductRepository productRepository)
+public sealed class GetAllProductsQueryHandler(IQueryExecutor queryExecutor)
     : IQueryHandler<GetAllProductsQuery, PagedResult<GetAllProductsResponse>>
 {
     public async ValueTask<PagedResult<GetAllProductsResponse>> Handle(GetAllProductsQuery request, CancellationToken cancellationToken)
     {
-        var (products, totalCount) = await productRepository.GetPagedAsync(request.Page, request.PageSize, cancellationToken);
+        var skip = (request.Page - 1) * request.PageSize;
 
-        var items = products.Select(GetAllProductsResponse.From).ToList();
+        var (totalCount, items) = await queryExecutor.QueryCountAndListAsync<GetAllProductsResponse>(
+            Sql.CountAndList, 
+            new { Skip = skip, request.PageSize }, 
+            cancellationToken);
 
         return new PagedResult<GetAllProductsResponse>(items, request.Page, request.PageSize, totalCount);
     }

@@ -1,37 +1,24 @@
-using OrderFlow.Domain.Orders;
-
 namespace OrderFlow.Application.Orders.GetAll;
 
-public sealed record GetAllOrdersResponse(
-    Guid Id,
-    Guid CustomerId,
-    string Currency,
-    string Status,
-    decimal Total,
-    DateTime CreatedAtUtc,
-    DateTime? ConfirmedAtUtc,
-    DateTime? CanceledAtUtc,
-    IReadOnlyCollection<GetAllOrdersItemResponse> Items)
+public sealed record GetAllOrdersResponse
 {
-    public static GetAllOrdersResponse From(Order order)
-    {
-        return new GetAllOrdersResponse(
-            order.Id,
-            order.CustomerId,
-            order.Currency.Value,
-            order.Status.ToString(),
-            order.Total,
-            order.CreatedAtUtc,
-            order.ConfirmedAtUtc,
-            order.CanceledAtUtc,
-            order.Items.Select(GetAllOrdersItemResponse.From).ToList());
-    }
+    public Guid Id                  { get; init; }
+    public Guid CustomerId          { get; init; }
+    public string Currency          { get; init; } = string.Empty;
+    public string Status            { get; init; } = string.Empty;
+    public decimal Total            { get; init; }
+    public DateTime CreatedAtUtc    { get; init; }
+    public DateTime? ConfirmedAtUtc { get; init; }
+    public DateTime? CanceledAtUtc  { get; init; }
+    public IReadOnlyCollection<GetAllOrdersItemResponse> Items { get; init; } = [];
 }
 
-public sealed record GetAllOrdersItemResponse(Guid ProductId, decimal UnitPrice, int Quantity, decimal LineTotal)
+public sealed record GetAllOrdersItemResponse
 {
-    public static GetAllOrdersItemResponse From(OrderItem item)
-    {
-        return new GetAllOrdersItemResponse(item.ProductId, item.UnitPrice, item.Quantity, item.LineTotal);
-    }
+    public Guid ProductId    { get; init; }
+    public decimal UnitPrice { get; init; }
+    public int Quantity      { get; init; }
+    public decimal LineTotal { get; init; }
 }
+
+public sealed record OrderItemRow(Guid OrderId, Guid ProductId, decimal UnitPrice, int Quantity);

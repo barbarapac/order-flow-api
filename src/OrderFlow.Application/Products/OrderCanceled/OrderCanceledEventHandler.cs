@@ -29,7 +29,9 @@ public sealed class OrderCanceledEventHandler(
         finally
         {
             foreach (var @lock in locks)
+            {
                 await @lock.DisposeAsync();
+            }
         }
     }
 }
