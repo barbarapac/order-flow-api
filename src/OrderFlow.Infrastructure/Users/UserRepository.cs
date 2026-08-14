@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Domain.Users;
+using OrderFlow.Domain.Users.ValueObjects;
 using OrderFlow.Infrastructure._Shared;
 
 namespace OrderFlow.Infrastructure.Users;

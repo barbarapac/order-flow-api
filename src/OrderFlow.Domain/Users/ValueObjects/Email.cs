@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
+using OrderFlow.Domain.Users.Exceptions;
 
-namespace OrderFlow.Domain.Users;
+namespace OrderFlow.Domain.Users.ValueObjects;
 
 public sealed partial record Email
 {
@@ -12,14 +13,14 @@ public sealed partial record Email
     {
         if (string.IsNullOrWhiteSpace(rawValue))
         {
-            throw UserDomainException.EmailRequired();
+            throw UserException.EmailRequired();
         }
 
         var normalized = rawValue.Trim().ToLowerInvariant();
 
         if (!EmailRegex().IsMatch(normalized))
         {
-            throw UserDomainException.EmailInvalidFormat(rawValue);
+            throw UserException.EmailInvalidFormat(rawValue);
         }
 
         return new Email(normalized);

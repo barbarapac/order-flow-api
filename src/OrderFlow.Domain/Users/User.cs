@@ -4,11 +4,11 @@ public sealed class User
 {
     public Guid Id               { get; private set; }
     public string Name           { get; private set; }
-    public Email Email           { get; private set; }
+    public ValueObjects.Email Email           { get; private set; }
     public string PasswordHash   { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
 
-    private User(string name, Email email, string passwordHash)
+    private User(string name, ValueObjects.Email email, string passwordHash)
     {
         Id           = Guid.NewGuid();
         Name         = name;
@@ -23,6 +23,6 @@ public sealed class User
         UserGuard.NameIsValid(name);
         UserGuard.PasswordHashIsValid(passwordHash);
 
-        return new User(name.Trim(), Email.Create(emailRaw), passwordHash);
+        return new User(name.Trim(), ValueObjects.Email.Create(emailRaw), passwordHash);
     }
 }

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using OrderFlow.Domain.Users;
+using OrderFlow.Domain.Users.Exceptions;
 
 namespace OrderFlow.UnitTest.Domain.Users;
 
@@ -33,7 +34,7 @@ public class UserTests
         var act = () => User.Register(invalidName, "jane@example.com", "hashed-password");
 
         // Act & Assert
-        act.Should().Throw<UserDomainException>()
+        act.Should().Throw<UserException>()
             .Which.Code.Should().Be("user.invalid_name");
     }
 
@@ -44,7 +45,7 @@ public class UserTests
         var act = () => User.Register("Jane Doe", "not-an-email", "hashed-password");
 
         // Act & Assert
-        act.Should().Throw<UserDomainException>()
+        act.Should().Throw<UserException>()
             .Which.Code.Should().Be("user.invalid_email");
     }
 
@@ -57,7 +58,7 @@ public class UserTests
         var act = () => User.Register("Jane Doe", "jane@example.com", invalidHash);
 
         // Act & Assert
-        act.Should().Throw<UserDomainException>()
+        act.Should().Throw<UserException>()
             .Which.Code.Should().Be("user.invalid_password_hash");
     }
 

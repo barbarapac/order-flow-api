@@ -1,6 +1,8 @@
 using FluentAssertions;
 using OrderFlow.Domain._Shared;
 using OrderFlow.Domain.Users;
+using OrderFlow.Domain.Users.Exceptions;
+using OrderFlow.Domain.Users.ValueObjects;
 
 namespace OrderFlow.UnitTest.Domain.Users;
 
@@ -30,7 +32,7 @@ public class EmailTests
         var act = () => Email.Create(raw);
 
         // Act & Assert
-        act.Should().Throw<UserDomainException>()
+        act.Should().Throw<UserException>()
             .Which.Code.Should().Be("user.invalid_email");
     }
 
@@ -41,7 +43,7 @@ public class EmailTests
         var act = () => Email.Create("invalid");
 
         // Act & Assert
-        act.Should().Throw<UserDomainException>()
+        act.Should().Throw<UserException>()
             .Which.Type.Should().Be(ErrorType.Validation);
     }
 

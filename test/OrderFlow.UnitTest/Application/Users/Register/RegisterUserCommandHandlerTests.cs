@@ -1,6 +1,7 @@
 using FluentAssertions;
 using OrderFlow.Domain._Shared;
 using OrderFlow.Domain.Users;
+using OrderFlow.Domain.Users.Exceptions;
 using OrderFlow.UnitTest.Application.Users.Register.Fakers;
 using OrderFlow.UnitTest.Application.Users.Register.Fixtures;
 
@@ -58,7 +59,7 @@ public class RegisterUserCommandHandlerTests : RegisterUserCommandHandlerFixture
         var act = async () => await Handler.Handle(command, default);
 
         // Assert
-        (await act.Should().ThrowAsync<UserDomainException>())
+        (await act.Should().ThrowAsync<UserException>())
             .Which.Code.Should().Be("user.invalid_name");
 
         UserRepositoryMock.VerifyAddWasNotCalled();
