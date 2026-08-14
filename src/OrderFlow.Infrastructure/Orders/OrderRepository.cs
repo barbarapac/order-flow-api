@@ -14,6 +14,13 @@ public sealed class OrderRepository(OrderFlowDbContext dbContext) : IOrderReposi
             .FirstOrDefaultAsync(o => o.Id == id && o.CustomerId == customerId, cancellationToken);
     }
 
+    public async Task<Order?> GetTrackedByIdAsync(Guid id, Guid customerId, CancellationToken cancellationToken)
+    {
+        return await dbContext.Orders
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(o => o.Id == id && o.CustomerId == customerId, cancellationToken);
+    }
+
     public async Task<(IReadOnlyCollection<Order> Items, int TotalCount)> GetPagedAsync(
         Guid customerId, OrderStatus? status, int page, int pageSize, CancellationToken cancellationToken)
     {

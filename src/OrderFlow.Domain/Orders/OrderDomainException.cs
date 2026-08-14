@@ -17,4 +17,7 @@ public sealed class OrderDomainException : DomainException
 
     public static OrderDomainException CurrencyInvalidFormat(string rawValue) =>
         new("order.invalid_currency", $"'{rawValue}' não é um código de moeda ISO 4217 válido.", ErrorType.Validation);
+
+    public static OrderDomainException InvalidTransition(OrderStatus from, OrderStatus to) =>
+        new("order.invalid_transition", $"Não é possível transicionar o pedido de '{from}' para '{to}'.", ErrorType.Conflict);
 }

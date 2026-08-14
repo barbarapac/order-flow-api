@@ -9,11 +9,12 @@ public sealed class Order
     public DateTime CreatedAtUtc      { get; private set; }
     public DateTime? ConfirmedAtUtc   { get; private set; }
     public DateTime? CanceledAtUtc    { get; private set; }
-
-    private readonly List<OrderItem> _items = [];
-    public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
-
+    public bool IsConfirmed => Status == OrderStatus.Confirmed;
+    public bool IsCanceled  => Status == OrderStatus.Canceled;
     public decimal Total => _items.Sum(i => i.LineTotal);
+
+    public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
+    private readonly List<OrderItem> _items = [];
 
     private Order(Guid customerId, Currency currency)
     {
@@ -37,5 +38,16 @@ public sealed class Order
         }
 
         return order;
+    }
+
+    public OrderConfirmedDomainEvent Confirm()
+    {
+        OrderGuard.CanConfirm(Status);
+
+        Status         = OrderStatus.Confirmed;
+        ConfirmedAtUtc = DateTime.UtcNow;
+
+        return new OrderConfirmedDomainEvent(
+            Id, _items.Select(i => new OrderStockAdjustment(i.ProductId, i.Quantity)).ToList());
     }
 }

@@ -169,8 +169,14 @@ com `Result<T>`.
       validação).
 - [x] **Fase 3** — `POST /orders` (`Place`): validação de itens/estoque, `Total`, `GET /orders/{id}`,
       `GET /orders` (paginação + filtros).
-- [ ] **Fase 4** — `POST /orders/{id}/confirm`: evento de domínio, lock distribuído Redis, update condicional
-      transacional, idempotência.
+- [x] **Fase 4** — `POST /orders/{id}/confirm`: `Order.Confirm()` idempotente levanta `OrderConfirmedDomainEvent`;
+      `ConfirmOrderCommandHandler` abre transação Postgres, publica o evento via `IPublisher` e faz commit/rollback
+      conforme o resultado; `OrderConfirmedDomainEventHandler` adquire locks distribuídos Redis por
+      `product:{id}:stock` (ProductIds ordenados) e roda `IProductRepository.DecrementStockAsync` (`UPDATE ...
+      WHERE available_quantity >= @qty` via `ExecuteUpdateAsync`) para cada item; 0 linhas afetadas lança
+      `InsufficientStockException` (`Application`, `ErrorType.Conflict`) e reverte a transação inteira — validado
+      de ponta a ponta contra Postgres + Redis reais via Docker (confirmação simples, idempotência, 404, e disputa
+      de estoque concorrente entre dois pedidos `Placed` do mesmo produto).
 - [ ] **Fase 5** — `POST /orders/{id}/cancel`: idempotência, devolução condicional de estoque.
 - [ ] **Fase 6** — Testes (xUnit): regras de domínio, casos de borda de concorrência, handlers de Application.
       Auditoria de `CancellationToken` end-to-end.

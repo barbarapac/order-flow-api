@@ -6,4 +6,5 @@ public interface IProductRepository
     Task<IReadOnlyCollection<Product>> GetAllAsync(CancellationToken cancellationToken);
     void Add(Product product);
     void Remove(Product product);
+    Task<int> DecrementStockAsync(Guid productId, int quantity, CancellationToken cancellationToken);
 }

@@ -81,4 +81,39 @@ public class OrderTests
         // Assert
         first.Id.Should().NotBe(second.Id);
     }
+
+    [Fact]
+    public void Confirm_WhenPlaced_TransitionsToConfirmedAndReturnsEvent()
+    {
+        // Arrange
+        var items = new List<OrderItemDraft> { new(Guid.NewGuid(), 10m, 2), new(Guid.NewGuid(), 5m, 3) };
+        var order = Order.Place(Guid.NewGuid(), "USD", items);
+
+        // Act
+        var domainEvent = order.Confirm();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Confirmed);
+        order.ConfirmedAtUtc.Should().NotBeNull();
+        order.ConfirmedAtUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+
+        domainEvent.OrderId.Should().Be(order.Id);
+        domainEvent.Items.Should().BeEquivalentTo(items.Select(i => new OrderStockAdjustment(i.ProductId, i.Quantity)));
+    }
+
+    [Fact]
+    public void Confirm_WhenAlreadyConfirmed_ThrowsDomainException()
+    {
+        // Arrange
+        var items = new List<OrderItemDraft> { new(Guid.NewGuid(), 10m, 1) };
+        var order = Order.Place(Guid.NewGuid(), "USD", items);
+        order.Confirm();
+
+        // Act
+        var act = () => order.Confirm();
+
+        // Assert
+        act.Should().Throw<OrderDomainException>()
+            .Which.Code.Should().Be("order.invalid_transition");
+    }
 }
