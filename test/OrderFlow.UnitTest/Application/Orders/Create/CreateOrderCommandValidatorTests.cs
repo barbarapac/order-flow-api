@@ -11,7 +11,7 @@ public class CreateOrderCommandValidatorTests
     public void Validate_WithValidCommand_IsValid()
     {
         // Arrange
-        var command = new CreteOrderCommand(Guid.NewGuid(), "USD", [new CreateOrderItemRequest(Guid.NewGuid(), 2)]);
+        var command = new CreateOrderCommand(Guid.NewGuid(), "USD", [new CreateOrderItemRequest(Guid.NewGuid(), 2)]);
 
         // Act
         var result = _validator.Validate(command);
@@ -27,35 +27,35 @@ public class CreateOrderCommandValidatorTests
     public void Validate_WithInvalidCurrency_HasErrorForCurrency(string currency)
     {
         // Arrange
-        var command = new CreteOrderCommand(Guid.NewGuid(), currency, [new CreateOrderItemRequest(Guid.NewGuid(), 1)]);
+        var command = new CreateOrderCommand(Guid.NewGuid(), currency, [new CreateOrderItemRequest(Guid.NewGuid(), 1)]);
 
         // Act
         var result = _validator.Validate(command);
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreteOrderCommand.Currency));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateOrderCommand.Currency));
     }
 
     [Fact]
     public void Validate_WithNoItems_HasErrorForItems()
     {
         // Arrange
-        var command = new CreteOrderCommand(Guid.NewGuid(), "USD", []);
+        var command = new CreateOrderCommand(Guid.NewGuid(), "USD", []);
 
         // Act
         var result = _validator.Validate(command);
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreteOrderCommand.Items));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateOrderCommand.Items));
     }
 
     [Fact]
     public void Validate_WithEmptyProductId_HasErrorForItemProductId()
     {
         // Arrange
-        var command = new CreteOrderCommand(Guid.NewGuid(), "USD", [new CreateOrderItemRequest(Guid.Empty, 1)]);
+        var command = new CreateOrderCommand(Guid.NewGuid(), "USD", [new CreateOrderItemRequest(Guid.Empty, 1)]);
 
         // Act
         var result = _validator.Validate(command);
@@ -71,7 +71,7 @@ public class CreateOrderCommandValidatorTests
     public void Validate_WithNonPositiveQuantity_HasErrorForItemQuantity(int quantity)
     {
         // Arrange
-        var command = new CreteOrderCommand(Guid.NewGuid(), "USD", [new CreateOrderItemRequest(Guid.NewGuid(), quantity)]);
+        var command = new CreateOrderCommand(Guid.NewGuid(), "USD", [new CreateOrderItemRequest(Guid.NewGuid(), quantity)]);
 
         // Act
         var result = _validator.Validate(command);

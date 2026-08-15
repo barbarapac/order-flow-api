@@ -1,8 +1,5 @@
 # OrderFlow API
 
-> API de pedidos em .NET 10, construída em torno de uma invariante crítica:
-> **o estoque nunca pode ficar negativo, nem sob pedidos concorrentes, nem com múltiplas instâncias da API.**
-
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![EF Core](https://img.shields.io/badge/EF%20Core-10-6B4FBB?logo=dotnet&logoColor=white)](https://learn.microsoft.com/ef/core/)
 [![Dapper](https://img.shields.io/badge/Dapper-2.1-4B5563)](https://github.com/DapperLib/Dapper)
@@ -11,15 +8,17 @@
 [![Docker](https://img.shields.io/badge/Docker%20Compose-pronto-2496ED?logo=docker&logoColor=white)](./docker-compose.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
-Um usuário se cadastra, monta um pedido com produtos do catálogo e o conduz por um ciclo de vida curto:
-`Placed` → `Confirmed` → `Canceled`. O domínio é pequeno de propósito. A complexidade real está concentrada em
-um único ponto — a confirmação do pedido, onde o estoque é efetivamente baixado — e é ele que orienta as
-decisões de arquitetura.
+API de pedidos em .NET 10, construída em torno de uma invariante crítica: **o estoque nunca pode ficar negativo, nem sob pedidos concorrentes, nem com múltiplas instâncias da API.**
 
-**Índice** · [Início rápido](#início-rápido) · [Arquitetura](#arquitetura) · [Stack](#stack) ·
-[Concorrência](#o-problema-central-concorrência-de-estoque) · [Endpoints](#endpoints) ·
-[Configuração](#configuração) · [Testes](#testes) · [Trade-offs](#trade-offs-e-evoluções) ·
-[Documentação](#documentação)
+
+1. [Início rápido](#início-rápido)
+2. [Arquitetura](#arquitetura) 
+3. [Stack](#stack)
+4. [Concorrência](#o-problema-central-concorrência-de-estoque)
+5. [Endpoints](#endpoints)
+6. [Testes](#testes)
+7. [Documentação](#documentação)
+
 
 ## Início rápido
 
@@ -226,17 +225,6 @@ Lida de `appsettings.json` ou de variáveis de ambiente no formato `Seção__Cha
 dotnet test                                           # todos
 dotnet test --filter "FullyQualifiedName~OrderTests"  # um arquivo
 ```
-
-São **146 testes** xUnit, cobrindo bem além do CRUD:
-
-| Camada | O que é coberto |
-|---|---|
-| Domain | invariantes do pedido, transições válidas e inválidas, congelamento de preço, Value Objects |
-| Application | handlers de Commands e Queries de usuário, produto e pedido, e os validators |
-| Concorrência | idempotência, estoque insuficiente, falha parcial em pedido multi-item, ordem de aquisição e liberação de locks |
-| Infrastructure | geração de token, hash de senha, lock distribuído, pipeline de validação, handler global de erro |
-
-Há ainda uma auditoria de propagação de `CancellationToken` de ponta a ponta, do endpoint ao repositório.
 
 ## Estrutura do projeto
 

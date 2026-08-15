@@ -2,7 +2,7 @@ using FluentValidation;
 
 namespace OrderFlow.Application.Orders.Create;
 
-public sealed class CreateOrderCommandValidator : AbstractValidator<CreteOrderCommand>
+public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
 {
     public CreateOrderCommandValidator()
     {

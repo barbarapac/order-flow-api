@@ -10,9 +10,9 @@ public sealed class CreateOrderCommandHandler(
     IOrderRepository orderRepository,
     IProductRepository productRepository,
     IUnitOfWork unitOfWork)
-    : ICommandHandler<CreteOrderCommand, Result<CreateOrderResponse>>
+    : ICommandHandler<CreateOrderCommand, Result<CreateOrderResponse>>
 {
-    public async ValueTask<Result<CreateOrderResponse>> Handle(CreteOrderCommand request, CancellationToken cancellationToken)
+    public async ValueTask<Result<CreateOrderResponse>> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
     {
         var drafts = new List<NewOrderItem>();
 

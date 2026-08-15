@@ -14,14 +14,18 @@ O código (entidades, propriedades, comandos: `User`, `Order`, `Product`, `Regis
 **inglês**; a documentação (`docs/*.md`, este arquivo) é em **português**.
 
 Documentação de arquitetura completa — leia antes de decisões estruturais não triviais:
+- `docs/README.md` — índice da documentação
+- `docs/architecture.md` — camadas, Vertical Slice, pipeline de requisição, CQRS escrita/leitura
 - `docs/domain-model.md` — agregados, invariantes, máquina de estados, eventos de domínio
-- `docs/decisions.md` — ADRs numerados (ADR-001 a ADR-011) com o "porquê" de cada decisão + roadmap de fases
+- `docs/concurrency.md` — o problema de estoque, lock distribuído + update condicional, limitações
 - `docs/error-handling.md` — taxonomia de erros e mapeamento para `ProblemDetails`
+- `docs/decisions/` — ADRs numerados (001 a 014), um por arquivo, com o "porquê" + roadmap de fases
 
-**Status atual**: Fases 1 a 6 concluídas (cadastro/login de usuário, JWT, tratamento de erro global; CRUD completo
-de `Product`; `Order` com `Place`/`Confirm`/`Cancel`, baixa e devolução de estoque via lock distribuído Redis;
-138 testes xUnit cobrindo domínio/Application/Infrastructure + auditoria de `CancellationToken` end-to-end).
-Falta a Fase 7 do roadmap em `docs/decisions.md` (README final).
+**Status atual**: Fases 1 a 7 concluídas — o projeto está completo. Cadastro/login de usuário, JWT, tratamento
+de erro global; CRUD completo de `Product`; `Order` com `Create`/`Confirm`/`Cancel`, baixa e devolução de
+estoque via lock distribuído Redis; read-side em Dapper; 146 testes xUnit cobrindo domínio/Application/
+Infrastructure + auditoria de `CancellationToken` end-to-end; README + documentação de arquitetura, CI
+(GitHub Actions) e licença MIT.
 
 ## Comandos
 
@@ -81,32 +85,38 @@ Ver `docs/error-handling.md` para o detalhe completo. Resumo do que importa ao e
   (`AddValidatorsFromAssembly`). Roda no `ValidationBehavior` (`IPipelineBehavior<TMessage,TResponse>` do
   `Mediator`), **antes** do handler —
   lança `FluentValidation.ValidationException` → 400.
-- **Invariante de agregado** (`Domain`): Guard Clauses estáticas (`UserGuard`, futuramente `OrderGuard`)
-  chamadas no início de construtores/factories/métodos de transição, lançando `DomainException(code, message,
-  ErrorType)` — fail fast, nunca deixa o objeto existir em estado inválido. Só agregados ricos (`User`, `Order`)
-  têm Guard; `Product` é anêmico por exigência do enunciado e não tem.
+- **Invariante de agregado** (`Domain`): Guard Clauses estáticas `internal` (`UserGuard`, `OrderGuard`) chamadas
+  no início de construtores/factories/métodos de transição, lançando a exception selada do agregado
+  (`OrderException`, `UserException`, ambas herdando de `DomainException`) — fail fast, nunca deixa o objeto
+  existir em estado inválido. Códigos/mensagens ficam em factories nomeadas dentro dessa exception, não
+  espalhados pelos guards. Só agregados ricos (`User`, `Order`) têm Guard; `Product` é anêmico e não tem.
 - **"Não encontrado" / orquestração na Application**: `Result<T>` (`Result.Success`/`Result.Failure(Error)`),
   tratado direto no endpoint via `.ToProblemResult()` — nunca vira exception.
-- Toda exception não tratada por `AppException` cai no `GlobalExceptionHandler` (`IExceptionHandler`, não
-  middleware customizado), que usa a tabela única `ErrorTypeExtensions.ToStatusCode()`
-  (`Validation`→400, `NotFound`→404, `Conflict`→409, `BusinessRule`→422) — a mesma tabela usada pelo
-  `Result<T>.Failure` no endpoint. Não crie um novo mapeamento de status em outro lugar.
-- Códigos de erro (`Code` em `AppException`/`Error`) seguem `{aggregate}.{motivo}` em snake_case
+- Toda exception não tratada cai no `GlobalExceptionHandler` (`IExceptionHandler`, não middleware customizado),
+  que usa a tabela única `ErrorTypeExtensions.ToStatusCode()` (`Validation`→400, `Unauthorized`→401,
+  `NotFound`→404, `Conflict`→409, `BusinessRule`→422) — a mesma tabela usada pelo `Result<T>.Failure` no
+  endpoint. Não crie um novo mapeamento de status em outro lugar.
+- Códigos de erro (`Code` em `DomainException`/`Error`) seguem `{aggregate}.{motivo}` em snake_case
   (`order.invalid_transition`, `user.invalid_email`).
 
 ### Decisões de domínio a respeitar em código novo
 
 - IDs de agregado são `Guid` gerados em memória (não `IDENTITY`/serial) — ver ADR-001.
 - `Order.CustomerId` é sempre derivado do claim do JWT autenticado, nunca recebido no payload — não existe
-  entidade `Customer` separada de `User` (ADR-003).
-- Baixa de estoque só acontece em `Order.Confirm()`, nunca em `Order.Place()` — `Place` apenas valida
-  `AvailableQuantity >= Quantity` (ADR-004). Confirmação usa update condicional (`WHERE available_quantity >=
-  @qty`) dentro de transação + lock distribuído Redis por `ProductId` (ordenado, para evitar deadlock em pedidos
-  multi-item) — ver ADR-005 e a seção 7 de `docs/domain-model.md` antes de mexer nesse fluxo.
+  entidade `Customer` separada de `User` (ADR-004).
+- Baixa de estoque só acontece em `Order.Confirm()`, nunca em `Order.Create()` — a criação apenas valida
+  `AvailableQuantity >= Quantity` no handler (ADR-005). Confirmação usa update condicional
+  (`WHERE available_quantity >= @qty`, via `ExecuteUpdateAsync`) dentro de transação + lock distribuído Redis
+  por `ProductId` (ordenado, para evitar deadlock em pedidos multi-item) — ver ADR-006, ADR-007 e
+  `docs/concurrency.md` antes de mexer nesse fluxo.
 - `Product` é deliberadamente anêmico (propriedades públicas, CRUD simples via Application); `Order`/`OrderItem`
   concentram todo o comportamento de negócio no agregado. Não adicione Guards/métodos de negócio em `Product`.
-- `Order.Confirm()`/`Cancel()` são idempotentes por design (no-op silencioso se já no estado alvo, sem levantar
-  evento de novo) — preserve esse comportamento ao alterar a máquina de estados.
+- As transições **retornam** o evento de domínio (`Confirm()` → `OrderConfirmed`, `Cancel()` → `OrderCanceled?`,
+  `null` quando o pedido só estava `Placed`); não há `AggregateRoot.Raise()`/lista interna de eventos. Quem
+  publica é o handler, dentro da transação.
+- Idempotência de `Confirm`/`Cancel` mora **no handler** (early return se `IsConfirmed`/`IsCanceled`, dentro do
+  lock `order:{id}:status`), não no agregado — `OrderGuard.CanConfirm`/`CanCancel` continuam lançando em
+  transição inválida. Preserve essa divisão ao alterar a máquina de estados.
 - Senha em texto puro nunca chega ao Domain: validação de política de senha é FluentValidation na Application;
   o Domain só recebe o hash já pronto (`IPasswordHasher` fica na Infrastructure).
 

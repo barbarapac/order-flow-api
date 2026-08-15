@@ -11,7 +11,7 @@ public sealed class CreateOrderEndpoint : IEndpoint
     {
         app.MapPost("/orders", async (CreateOrderRequest request, ClaimsPrincipal user, ISender sender, CancellationToken cancellationToken) =>
             {
-                var command = new CreteOrderCommand(
+                var command = new CreateOrderCommand(
                     user.GetUserId(),
                     request.Currency,
                     request.Items.Select(i => new CreateOrderItemRequest(i.ProductId, i.Quantity)).ToList());
