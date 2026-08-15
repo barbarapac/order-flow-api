@@ -3,7 +3,7 @@
 Este é o problema central do OrderFlow. O domínio é pequeno de propósito; a complexidade real está em uma única
 invariante:
 
-> **A quantidade disponível nunca pode ficar negativa — nem com pedidos concorrentes disputando o mesmo produto,
+> **A quantidade disponível nunca pode ficar negativa, nem com pedidos concorrentes disputando o mesmo produto,
 > nem com várias instâncias da API rodando ao mesmo tempo.**
 
 ## O problema

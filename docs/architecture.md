@@ -25,7 +25,7 @@ ASP.NET Core.
 
 Existe uma exceção consciente: o `Domain` referencia `Mediator.Abstractions`, porque os eventos de domínio são
 notificações do mediador. É acoplamento a uma abstração de mensageria em processo, não a infraestrutura. A
-alternativa seria uma interface própria mais um adaptador — custo que não se paga no escopo atual.
+alternativa seria uma interface própria mais um adaptador, custo que não se paga no escopo atual.
 
 Cada camada expõe um único método de extensão de registro (`AddApplication`, `AddInfrastructure`, `AddWebApi`),
 chamado no `Program.cs`.

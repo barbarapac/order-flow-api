@@ -3,8 +3,6 @@
 O [README raiz](../README.md) mostra como rodar e usar a API. Estes documentos explicam **como** a solução é
 construída e **por que** ela é assim.
 
-O texto é em português; os identificadores de código ficam em inglês ([ADR-002](./decisions/002-idioma-dominio.md)).
-
 | Documento | Responde |
 |---|---|
 | [`architecture.md`](./architecture.md) | Como as camadas se encaixam e por onde passa uma requisição |

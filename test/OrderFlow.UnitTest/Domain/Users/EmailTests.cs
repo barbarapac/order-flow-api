@@ -1,6 +1,5 @@
 using FluentAssertions;
 using OrderFlow.Domain._Shared;
-using OrderFlow.Domain.Users;
 using OrderFlow.Domain.Users.Exceptions;
 using OrderFlow.Domain.Users.ValueObjects;
 

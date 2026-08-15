@@ -91,9 +91,7 @@ curl -s -X POST $BASE/orders/$ORDER_ID/cancel -H "Authorization: Bearer $TOKEN"
 
 ## Arquitetura
 
-Quatro projetos com dependência em uma única direção, cada um organizado internamente por **feature**. Não
-existe pasta `Controllers/` ou `Services/`: existe `Orders/Confirm/`, com o Command, o Handler e o Response lado
-a lado.
+Quatro projetos com dependência em uma única direção, cada um organizado internamente por **feature**.
 
 ```mermaid
 flowchart LR
@@ -128,12 +126,11 @@ flowchart LR
 | Runtime | .NET 10 · ASP.NET Core Minimal API | — |
 | Escrita | EF Core 10 + Npgsql | change tracking, transações, migrations |
 | Leitura | Dapper | SQL explícito, projeção direta no DTO ([ADR-014](docs/decisions/014-dapper-read-side.md)) |
-| CQRS | `Mediator` (source generator) | despacho resolvido em compilação — **não** é MediatR ([ADR-003](docs/decisions/003-cqrs-mediator.md)) |
+| CQRS | `Mediator` (source generator) | despacho resolvido em compilação ([ADR-003](docs/decisions/003-cqrs-mediator.md)) |
 | Validação | FluentValidation | roda no pipeline, antes de qualquer handler |
 | Autenticação | JWT Bearer + BCrypt.Net | — |
 | Concorrência | StackExchange.Redis | lock distribuído, implementação manual ([ADR-007](docs/decisions/007-lock-distribuido-redis.md)) |
-| Erros | `ProblemDetails` (RFC 7807) | ponto único de tradução ([ADR-013](docs/decisions/013-iexceptionhandler-tabela-errortype.md)) |
-| Documentação | Swashbuckle (OpenAPI) | — |
+| Erros | `ProblemDetails` | ponto único de tradução ([ADR-013](docs/decisions/013-iexceptionhandler-tabela-errortype.md)) |
 | Testes | xUnit · FluentAssertions · Moq · AutoBogus | — |
 
 ## O problema central: concorrência de estoque
@@ -200,7 +197,7 @@ realmente inválidas, confirmar um pedido cancelado, retornam `409`.
 | `POST` | `/orders/{id}/cancel` | 🔒 | Cancela o pedido — devolve o estoque se já confirmado |
 
 > Para autenticar, cadastre-se em `/users`, pegue o token em `/auth/token` e envie
-`Authorization: Bearer {token}` no Swagger, pelo botão **Authorize**. O token vale 60 minutos
+`Authorization: {token}` no Swagger, pelo botão **Authorize**. O token vale 60 minutos
 ([ADR-011](docs/decisions/011-jwt-60-minutos.md)). Não há distinção de papéis nesta versão: qualquer usuário
 autenticado gerencia o catálogo, mas cada um só enxerga os próprios pedidos. O cliente do pedido nunca vem no
 payload é sempre derivado do token ([ADR-004](docs/decisions/004-sem-entidade-customer.md)).

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.OpenApi;
 using OrderFlow.WebApi._Shared;
 
@@ -9,8 +10,18 @@ public static class IoC
     {
         services.AddProblemDetails();
         services.AddExceptionHandler<GlobalExceptionHandler>();
-        
+
+        AddJson(services);
         AddSwagger(services);
+    }
+
+    private static void AddJson(IServiceCollection services)
+    {
+        services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+        services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
+            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
     }
 
     private static void AddSwagger(IServiceCollection services)
