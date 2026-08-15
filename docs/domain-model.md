@@ -1,18 +1,8 @@
-# Modelagem de Domínio — OrderFlow
+# Modelagem de domínio
 
-> Documento vivo, atualizado conforme o domínio evolui durante o desafio.
-> Para o histórico de decisões e trade-offs, ver [`decisions.md`](./decisions.md).
-> Para o detalhamento de tratamento de erro e `ProblemDetails`, ver [`error-handling.md`](./error-handling.md).
+Os três agregados, as invariantes que eles garantem, a máquina de estados do pedido e os eventos que ela produz.
 
-**Nota de idioma**: o texto deste documento está em português. Os nomes de entidades, propriedades e métodos no
-código (`Order`, `Product`, `User`, `Place`, `Confirm`, `Cancel`...) ficam em **inglês**, seguindo a linguagem
-ubíqua que o próprio enunciado do desafio já define — ver [ADR-002](./decisions.md#adr-002).
-
-## 1. Bounded contexts
-
-O domínio proposto pelo desafio (Produto, Pedido, Usuário) foi modelado como **três agregados dentro de um único
-serviço** (não há necessidade de separar em microsserviços para o escopo do teste), mas com fronteiras de
-consistência bem definidas — cada agregado só referencia o outro por Id, nunca por navegação de objeto:
+## Agregados e fronteiras
 
 ```mermaid
 flowchart LR
@@ -27,317 +17,144 @@ flowchart LR
     end
 
     Order -. CustomerId .-> User
-    OrderItem -. ProductId + snapshot .-> Product
+    OrderItem -. ProductId + preço congelado .-> Product
 ```
 
-- **Identity**: quem acessa a API (`User`).
-- **Catalog**: o que pode ser vendido (`Product`), CRUD simples e **domínio anêmico** (exigência explícita do
-  enunciado).
-- **Ordering**: o núcleo do domínio — `Order` é o agregado raiz, `OrderItem` é entidade filha (não tem
-  repositório próprio, só existe dentro de um `Order`).
+Cada agregado referencia o outro apenas por Id, nunca por navegação de objeto — a fronteira de consistência é
+explícita.
 
-## 2. Linguagem ubíqua
+- **`User`** é quem autentica na API e também quem cria pedidos. Não existe entidade `Customer` separada
+  ([ADR-004](./decisions/004-sem-entidade-customer.md)).
+- **`Product`** é o que pode ser vendido. É deliberadamente anêmico
+  ([ADR-008](./decisions/008-product-anemico-order-rico.md)).
+- **`Order`** é a raiz do agregado de pedido e `OrderItem` é entidade filha, que só existe dentro de um pedido.
+  É aqui que mora o comportamento de negócio.
 
-| Termo       | Significado                                                                       |
-|-------------|-------------------------------------------------------------------------------------|
-| `User`      | Conta que autentica na API. É também o "cliente" que cria pedidos.                 |
-| `Product`   | Item de catálogo, com preço e quantidade disponível em estoque.                    |
-| `Order`     | Pedido feito por um `User`, com um ou mais itens, em uma única `Currency`.          |
-| `OrderItem` | Linha do pedido: produto, quantidade e preço unitário **congelado** na criação.    |
-| `Placed`    | Pedido criado e validado (itens, estoque disponível). Estado inicial.              |
-| `Confirmed` | Pedido teve o estoque efetivamente baixado.                                        |
-| `Canceled`  | Pedido cancelado; se estava `Confirmed`, o estoque reservado é devolvido.           |
+## Linguagem ubíqua
 
-## 3. Shared Kernel
+| Termo | Significado |
+|---|---|
+| `User` | Conta que autentica na API. É também o cliente que cria pedidos. |
+| `Product` | Item de catálogo, com preço unitário e quantidade disponível em estoque. |
+| `Order` | Pedido de um `User`, com um ou mais itens, em uma única moeda. |
+| `OrderItem` | Linha do pedido: produto, quantidade e preço unitário congelado na criação. |
+| `Placed` | Pedido criado e validado. O estoque foi consultado, não reservado. Estado inicial. |
+| `Confirmed` | Pedido cujo estoque foi efetivamente baixado. |
+| `Canceled` | Pedido cancelado. Se estava confirmado, o estoque volta. |
 
-Peças técnicas genéricas do padrão tático DDD, reaproveitadas pelos três agregados, em
-`OrderFlow.Domain/SharedKernel`:
+## `User`
 
-```csharp
-public abstract class Entity<TId> : IEquatable<Entity<TId>> where TId : notnull
-{
-    public TId Id { get; protected init; } = default!;
-    // Equals/GetHashCode por Id
-}
+Guarda nome, e-mail, hash de senha e data de criação. O e-mail é um Value Object que valida formato e normaliza
+o valor na criação.
 
-public abstract class AggregateRoot<TId> : Entity<TId> where TId : notnull
-{
-    private readonly List<DomainEvent> _domainEvents = [];
-    public IReadOnlyCollection<DomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+Três pontos que definem o desenho:
 
-    protected void Raise(DomainEvent @event) => _domainEvents.Add(@event);
-    public void ClearDomainEvents() => _domainEvents.Clear();
-}
+- **A senha em texto puro nunca chega ao domínio.** A política de senha é validada na Application, sobre o texto
+  puro, antes do hash. O domínio recebe o hash pronto e só verifica que não está vazio.
+- **Verificar senha é infraestrutura**, não domínio: comparar hashes é responsabilidade do componente de hash,
+  chamado pelo handler de login.
+- **Não há papéis.** Nesta versão qualquer usuário autenticado gerencia o catálogo. Pedidos, porém, são sempre
+  filtrados pelo `CustomerId` do token.
 
-public abstract record DomainEvent : INotification
-{
-    public DateTime OccurredOnUtc { get; init; }
-}
+## `Product`
 
-public enum ErrorType { Validation, NotFound, Conflict, BusinessRule }
+Propriedades públicas, sem métodos de negócio, sem Guards e sem eventos. O CRUD é tratado inteiramente pela
+Application, com validação via FluentValidation: nome obrigatório, preço positivo, quantidade não negativa.
 
-/// Base de qualquer exception que carrega um Code (legível por máquina) + ErrorType,
-/// permitindo que um único handler global traduza para ProblemDetails sem conhecer
-/// cada tipo concreto. Detalhe completo em error-handling.md.
-public abstract class AppException(string code, string message, ErrorType type) : Exception(message)
-{
-    public string Code { get; } = code;
-    public ErrorType Type { get; } = type;
-}
+A baixa e a devolução de estoque **não passam por este objeto em memória** — são updates condicionais emitidos
+direto pelo repositório, justamente para não vazar regra de concorrência para uma entidade que é, por decisão,
+simples.
 
-/// Lançada pelos Guards dentro do Domain quando uma invariante de agregado é violada
-/// (construção ou transição de estado inválida).
-public sealed class DomainException(string code, string message, ErrorType type = ErrorType.BusinessRule)
-    : AppException(code, message, type);
-```
+## `Order`
 
-`Result<T>` continua existindo, mas com escopo reduzido: só para outcomes de **orquestração na Application** que
-o Domain não tem como saber (ex.: "esse Id não existe no repositório"). Ver ADR-007 para o racional completo da
-divisão Guard+Exception (Domain) vs. `Result<T>` (Application).
+O agregado rico. Guarda o cliente, a moeda, o status, as datas de criação, confirmação e cancelamento, e a lista
+de itens. O total é calculado a partir dos itens, não armazenado.
 
-```csharp
-public sealed record Error(string Code, string Message, ErrorType Type);
+Os itens só podem ser construídos pelo próprio agregado — não há como montar um `OrderItem` solto e enfiá-lo na
+coleção por fora. O preço unitário é **congelado** na criação: alterar o produto depois não muda o valor de um
+pedido já feito.
 
-public class Result<T>
-{
-    public bool IsSuccess { get; }
-    public Error? Error { get; }
-    public T? Value { get; }
-    // Result.Success(value) / Result.Failure<T>(error)
-}
-```
+### Invariantes garantidas na criação
 
-### Guard Clauses
+| Invariante | Erro resultante |
+|---|---|
+| O pedido tem pelo menos um item | `order.no_items` → 400 |
+| Toda quantidade é maior que zero | `order.invalid_quantity` → 400 |
+| A moeda é um código ISO 4217 válido | `order.invalid_currency` → 400 |
 
-Cada agregado com invariante real (`User`, `Order`) tem uma classe estática de guards, chamada logo no início de
-construtores/factories/métodos de transição — falha rápido, sem deixar o objeto existir em estado inválido:
+Existência do produto e disponibilidade de estoque **não** são invariantes do pedido. São regras que cruzam
+agregados e por isso vivem no handler de criação, que consulta o repositório de produtos antes de construir o
+pedido — o agregado nunca depende de repositório. Produto inexistente vira uma falha de `Result`, não exception:
+"existir no banco" não é algo que o pedido consiga avaliar sozinho.
 
-```csharp
-internal static class ProductGuard
-{
-    public static void NameIsValid(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new DomainException("product.invalid_name", "Product name cannot be empty.", ErrorType.Validation);
-    }
-}
-```
+### Transições
 
-> `Product` é citado aqui só como exemplo do padrão — na prática **`Product` não usa Guard** (ver seção 5): por
-> ser anêmico por exigência do enunciado, a validação dele fica inteira na Application (FluentValidation), não no
-> Domain. Guards valem para `User` e `Order`/`OrderItem`, que são os agregados ricos.
+| De | Para | O que acontece |
+|---|---|---|
+| — | `Placed` | Itens validados, estoque consultado. Nada é reservado. |
+| `Placed` | `Confirmed` | Estoque baixado. Produz o evento `OrderConfirmed`. |
+| `Placed` | `Canceled` | Nada a devolver — nunca houve baixa. Nenhum evento. |
+| `Confirmed` | `Canceled` | Estoque devolvido. Produz o evento `OrderCanceled`. |
 
-## 4. Agregado `User` (Identity)
+Qualquer outra transição falha com `order.invalid_transition` → 409.
 
-```csharp
-public sealed class User : AggregateRoot<Guid>
-{
-    public string Name { get; private set; }
-    public Email Email { get; private set; }           // Value Object
-    public string PasswordHash { get; private set; }    // opaco — hashing é responsabilidade da Infrastructure
-    public UserRole Role { get; private set; }           // Customer | Admin
-    public DateTime CreatedAtUtc { get; private set; }
+Dois detalhes de design valem registro:
 
-    public static User Register(string name, string emailRaw, string passwordHash, UserRole role = UserRole.Customer)
-    {
-        UserGuard.NameIsValid(name);
-        return new User(name, new Email(emailRaw), passwordHash, role);
-        // new Email(emailRaw) já valida formato e lança DomainException se inválido
-    }
-}
-```
+**A transição devolve o evento em vez de acumulá-lo numa lista interna.** Não existe um `Raise()` com fila de
+eventos: o método retorna exatamente o fato que aconteceu, e o handler decide publicá-lo. O tipo de retorno
+torna impossível confirmar um pedido e "esquecer" de tratar a baixa de estoque. E como cancelar um pedido
+`Placed` não gera efeito nenhum sobre estoque, o retorno do cancelamento é anulável — a informação está no
+próprio tipo.
 
-- **Value Object `Email`**: valida formato no construtor (lança `DomainException` se inválido) e normaliza
-  (`trim` + `lowercase`). Igualdade estrutural.
-- **Guard no Domain**: só o que o próprio agregado consegue avaliar sozinho (nome não vazio, formato de e-mail).
-  A **política de senha** (tamanho mínimo, complexidade) é validada em `Application` (FluentValidation) sobre a
-  senha em texto puro, **antes** do hash — o Domain nunca vê a senha em texto puro, só recebe o hash já pronto
-  (`IPasswordHasher` fica na Infrastructure).
-- **`Role`**: usado para autorização básica (`[Authorize(Roles = "Admin")]` em endpoints de gestão de catálogo).
-- **Sem método de "verificar senha" no domínio**: comparação de hash é preocupação de infraestrutura
-  (`IPasswordHasher.Verify(plainPassword, hash)`), chamada pelo handler de login.
+**O cancelamento decide sobre devolução pelo estado anterior**, não pelos itens: só um pedido que estava
+confirmado teve estoque decrementado, então só ele devolve.
 
-## 5. Agregado `Product` (Catalog) — anêmico por exigência do enunciado
+### Idempotência
 
-```csharp
-public sealed class Product : AggregateRoot<Guid>
-{
-    public string Name { get; set; }
-    public decimal UnitPrice { get; set; }
-    public int AvailableQuantity { get; set; }
-    public DateTime CreatedAtUtc { get; private init; }
-}
-```
+Confirmar ou cancelar duas vezes devolve `200` nas duas chamadas, e o efeito acontece uma vez só. Mas a
+idempotência mora **no handler**, não no agregado: o handler faz early return se o pedido já está no estado
+alvo, enquanto o agregado, chamado diretamente num estado incompatível, lança.
 
-- Sem métodos de negócio, sem Guards, sem eventos. CRUD tratado inteiramente pela Application (validação via
-  FluentValidation: preço > 0, quantidade >= 0, nome obrigatório).
-- A baixa/devolução de estoque **não** passa por este objeto em memória — é feita por um `UPDATE` condicional
-  direto no repositório (ver seção 7), justamente para não "vazar" regra de concorrência para uma entidade que o
-  enunciado pede explicitamente que seja simples.
+A separação é deliberada. O domínio permanece estrito sobre o que é uma transição legal; o caso de uso decide
+que repetir uma operação já concluída é sucesso, não erro.
 
-## 6. Agregado `Order` (Ordering) — rico
-
-```csharp
-public sealed class Order : AggregateRoot<Guid>
-{
-    public Guid CustomerId { get; private set; }        // = Id do User autenticado
-    public Currency Currency { get; private set; }        // Value Object (ISO 4217, 3 letras)
-    public OrderStatus Status { get; private set; }
-    public DateTime CreatedAtUtc { get; private set; }
-    public DateTime? ConfirmedAtUtc { get; private set; }
-    public DateTime? CanceledAtUtc { get; private set; }
-
-    private readonly List<OrderItem> _items = [];
-    public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
-    public decimal Total => _items.Sum(i => i.LineTotal);   // calculado, não persistido
-
-    public static Order Place(Guid customerId, string currencyRaw, IReadOnlyCollection<OrderItemDraft> items)
-    {
-        OrderGuard.HasItems(items);
-        var order = new Order(customerId, new Currency(currencyRaw));
-
-        foreach (var item in items)
-        {
-            OrderGuard.QuantityIsPositive(item.Quantity);
-            order._items.Add(new OrderItem(item.ProductId, item.UnitPrice, item.Quantity));
-        }
-
-        order.Raise(new OrderPlacedDomainEvent(order.Id));
-        return order;
-    }
-
-    public void Confirm()
-    {
-        if (Status == OrderStatus.Confirmed) return; // idempotente: no-op, sem novo evento
-
-        if (Status != OrderStatus.Placed)
-            throw new DomainException("order.invalid_transition",
-                $"Cannot confirm an order in status {Status}.", ErrorType.Conflict);
-
-        Status = OrderStatus.Confirmed;
-        ConfirmedAtUtc = DateTime.UtcNow;
-        Raise(new OrderConfirmedDomainEvent(Id, _items.Select(i => (i.ProductId, i.Quantity)).ToList()));
-    }
-
-    public void Cancel()
-    {
-        if (Status == OrderStatus.Canceled) return; // idempotente: no-op
-
-        var releaseStock = Status == OrderStatus.Confirmed;
-        Raise(new OrderCanceledDomainEvent(Id, releaseStock,
-            _items.Select(i => (i.ProductId, i.Quantity)).ToList()));
-
-        Status = OrderStatus.Canceled;
-        CanceledAtUtc = DateTime.UtcNow;
-    }
-}
-
-public sealed class OrderItem : Entity<Guid>
-{
-    public Guid ProductId { get; private set; }
-    public decimal UnitPrice { get; private set; }   // snapshot do preço no momento do pedido
-    public int Quantity { get; private set; }
-    public decimal LineTotal => UnitPrice * Quantity;
-}
-```
-
-### Invariantes garantidos por `Order.Place` (via `OrderGuard`)
-- Pelo menos 1 item (`HasItems`).
-- Toda `Quantity` > 0 (`QuantityIsPositive`).
-- `Currency` válida — validado no construtor do Value Object `Currency`, não num guard separado.
-
-> Existência do produto e disponibilidade de estoque **não** são invariantes do agregado `Order` — são regras que
-> cruzam agregados (`Order` x `Product`) e por isso ficam no **Application Handler**
-> (`PlaceOrderCommandHandler`), que consulta o `IProductRepository` antes de chamar `Order.Place`. O agregado
-> nunca depende de repositórios. Se o produto não existe, o handler retorna
-> `Result.Failure(Error.NotFound(...))` — não é uma `DomainException`, porque "existir ou não no banco" não é
-> algo que o `Order` consegue avaliar sozinho (ver ADR-007).
-
-### Máquina de estados
-
-```mermaid
-stateDiagram-v2
-    [*] --> Placed: Place() (itens validados, estoque OK)
-    Placed --> Confirmed: Confirm() (estoque baixado)
-    Placed --> Canceled: Cancel() (nada a devolver)
-    Confirmed --> Canceled: Cancel() (devolve estoque)
-    Confirmed --> [*]
-    Canceled --> [*]
-```
-
-- `Confirm()` só transiciona a partir de `Placed`; se já `Confirmed`, é um no-op idempotente (não lança, não
-  levanta o evento de novo — evita baixar estoque duas vezes). Se `Canceled`, lança `DomainException`
-  (`ErrorType.Conflict` → `409`).
-- `Cancel()` válido a partir de `Placed` ou `Confirmed`; se já `Canceled`, idem — no-op idempotente.
+Esse early return acontece dentro do lock do pedido, o que é o que impede um confirm e um cancel concorrentes de
+se atropelarem — ver [`concurrency.md`](./concurrency.md).
 
 ### Eventos de domínio
 
-- `OrderPlacedDomainEvent(OrderId)`
-- `OrderConfirmedDomainEvent(OrderId, IReadOnlyCollection<(ProductId, Quantity)>)`
-- `OrderCanceledDomainEvent(OrderId, ReleaseStock, IReadOnlyCollection<(ProductId, Quantity)>)`
+Os eventos `OrderConfirmed` e `OrderCanceled` carregam o Id do pedido e a lista de ajustes de estoque
+(produto + quantidade). São publicados em processo pelo mediador, **dentro da transação** aberta pelo handler.
 
-## 7. Confirmação do pedido e baixa de estoque (o ponto crítico de concorrência)
+Quem os consome vive no slice de `Products`, porque quem reage é o catálogo: um handler decrementa o estoque de
+cada item, o outro devolve. O evento é o que desacopla "o pedido mudou de estado" de "o catálogo precisa ajustar
+estoque" — o pedido não conhece o repositório de produtos.
 
-Modelo escolhido (ver [ADR-004](./decisions.md#adr-004) e [ADR-005](./decisions.md#adr-005)):
+Como a publicação é síncrona e transacional, uma falha no consumidor derruba a transação inteira. Não existe
+janela em que o pedido fique confirmado sem a baixa correspondente.
 
-- **`Order.Place`** apenas *valida* `AvailableQuantity >= Quantity` (consulta, sem reservar/decrementar).
-- **`Order.Confirm`** é quem efetivamente baixa o estoque — é aqui que a concorrência é crítica.
-- **`Order.Cancel`** só devolve estoque se o pedido estava `Confirmed` (nunca decrementado se só `Placed`).
+## Estoque
 
-Fluxo de `POST /orders/{id}/confirm`:
+| Operação | Efeito sobre o estoque |
+|---|---|
+| Criar pedido | Apenas consulta se há quantidade suficiente. Nada é reservado. |
+| Confirmar | Decrementa, com a condição de disponibilidade dentro do próprio update. |
+| Cancelar um pedido `Placed` | Nada — nunca houve baixa. |
+| Cancelar um pedido `Confirmed` | Devolve as quantidades. |
 
-```mermaid
-sequenceDiagram
-    participant API as Endpoint
-    participant Handler as ConfirmOrderCommandHandler
-    participant Order as Order (Domain)
-    participant Mediator as Mediator
-    participant EvtHandler as OrderConfirmedDomainEventHandler
-    participant Lock as IDistributedLockProvider (Redis)
-    participant Repo as ProductRepository
-    participant DB as Postgres (transação)
+A consequência aceita conscientemente: entre criar e confirmar, o estoque pode acabar. O pedido é criado com
+sucesso e a confirmação falha com `409 order.insufficient_stock`. Isso é preferível a reservar estoque na
+criação, o que exigiria expiração de reserva e um processo de limpeza
+([ADR-005](./decisions/005-baixa-estoque-na-confirmacao.md)).
 
-    API->>Handler: ConfirmOrderCommand(orderId)
-    Handler->>DB: BEGIN TRANSACTION
-    Handler->>Order: load + Confirm()
-    Order-->>Handler: OrderConfirmedDomainEvent (ou DomainException se transição inválida)
-    Handler->>Mediator: Publish(evento)
-    Mediator->>EvtHandler: Handle(evento)
-    EvtHandler->>Lock: acquire "product:{id}:stock" (ProductIds ordenados)
-    loop por item, dentro da transação
-        EvtHandler->>Repo: UPDATE products SET available_quantity -= qty WHERE id=@id AND available_quantity >= qty
-        Repo-->>EvtHandler: linhas afetadas
-    end
-    alt alguma linha afetada = 0
-        EvtHandler-->>Handler: throw InsufficientStockException (ErrorType.Conflict)
-        Handler->>DB: ROLLBACK
-        Handler-->>API: 409 Conflict (ProblemDetails, via middleware global)
-    else todas OK
-        EvtHandler->>Lock: release locks
-        Handler->>DB: COMMIT (Order.Status = Confirmed persistido)
-        Handler-->>API: 200 OK
-    end
-```
+O mecanismo que garante que o estoque nunca fica negativo sob concorrência está em
+[`concurrency.md`](./concurrency.md).
 
-Duas camadas de proteção, cada uma resolvendo um problema diferente:
+## Persistência
 
-1. **Transação + `UPDATE ... WHERE available_quantity >= @qty`**: garante atomicidade e não-negatividade mesmo
-   sob concorrência **dentro do mesmo Postgres**, com múltiplas réplicas da API.
-2. **Lock distribuído (Redis) por `ProductId`**, adquirido dentro do handler do evento de domínio: serializa a
-   seção crítica entre instâncias antes mesmo de chegar no banco, e é a peça que abre caminho para, no futuro,
-   mover a checagem de estoque para um serviço externo sem reescrever a orquestração. `ProductId`s são ordenados
-   antes de adquirir os locks para evitar deadlock quando um pedido tem múltiplos itens.
-
-Se qualquer item do pedido não tiver estoque suficiente no momento da confirmação (ex.: dois pedidos concorrentes
-para o último item), a transação inteira é revertida — nenhum produto do pedido é decrementado parcialmente, e o
-`Order` permanece em `Placed`. `InsufficientStockException` é uma `AppException` levantada na Application (não
-uma `DomainException` — não nasce de um Guard dentro do agregado), deliberadamente lançada pra abortar a
-transação em andamento. Detalhamento completo do mecanismo de tratamento de erro em
-[`error-handling.md`](./error-handling.md).
-
-## 8. Persistência (visão geral, detalhe em Fase 1)
-
-- `Order.Total` **não é coluna** — é propriedade calculada (`[NotMapped]` / `.Ignore()` no EF), sempre a partir
-  dos `OrderItem`s carregados junto (evita estado duplicado e inconsistência).
-- `OrderItem` mapeado como entidade dependente de `Order` (sem repositório próprio, sem `DbSet`).
-- IDs de agregado: `Guid` (gerado em memória, não `IDENTITY`) — ver [ADR-001](./decisions.md#adr-001).
+- O total do pedido **não é coluna** — é calculado a partir dos itens carregados, evitando estado duplicado que
+  pode divergir.
+- `OrderItem` é entidade dependente: sem `DbSet`, sem repositório, carregada junto com a raiz.
+- Os Value Objects de e-mail e moeda são persistidos como coluna simples, via conversão de valor.
+- A leitura não passa pelos agregados: as queries usam Dapper e projetam direto para o objeto de resposta
+  ([ADR-014](./decisions/014-dapper-read-side.md)).
