@@ -6,13 +6,36 @@ namespace OrderFlow.WebApi;
 
 public static class IoC
 {
-    public static void AddWebApi(this IServiceCollection services)
+    public static void AddWebApi(this IServiceCollection services, IConfiguration configuration,
+        IHostEnvironment environment)
     {
         services.AddProblemDetails();
         services.AddExceptionHandler<GlobalExceptionHandler>();
 
         AddJson(services);
         AddSwagger(services);
+        AddCors(services, configuration, environment);
+    }
+
+    private static void AddCors(IServiceCollection services, IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        var allowedOrigins = configuration.GetSection(CorsPolicies.AllowedOriginsSection).Get<string[]>();
+
+        if (allowedOrigins is null or { Length: 0 })
+        {
+            allowedOrigins = environment.IsDevelopment()
+                ? CorsPolicies.DefaultAllowedOrigins
+                : throw new InvalidOperationException(
+                    $"'{CorsPolicies.AllowedOriginsSection}' is not configured.");
+        }
+
+        services.AddCors(options =>
+            options.AddPolicy(CorsPolicies.Frontend, policy => policy
+                .WithOrigins(CorsPolicies.Normalize(allowedOrigins))
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .SetPreflightMaxAge(CorsPolicies.PreflightMaxAge)));
     }
 
     private static void AddJson(IServiceCollection services)

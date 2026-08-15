@@ -214,6 +214,7 @@ Lida de `appsettings.json` ou de variáveis de ambiente no formato `Seção__Cha
 | `Jwt:Audience` | Audiência do token | `OrderFlow.Client` |
 | `Jwt:SigningKey` | Chave HMAC de assinatura | chave de dev — **trocar em produção** |
 | `Jwt:ExpirationMinutes` | Validade do token | `60` |
+| `Cors:AllowedOrigins` | Origens liberadas para o frontend — array (`Cors__AllowedOrigins__0`); obrigatório fora de `Development` | `http://localhost:5173` e `http://127.0.0.1:5173` ([ADR-015](docs/decisions/015-cors-origens-explicitas.md)) |
 | `ApplyMigrationsOnStartup` | Aplica migrations no boot | `true` ([ADR-012](docs/decisions/012-migrations-automaticas.md)) |
 
 ## Testes

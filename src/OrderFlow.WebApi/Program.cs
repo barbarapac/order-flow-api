@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddWebApi();
+builder.Services.AddWebApi(builder.Configuration, builder.Environment);
 builder.Services.AddEndpoints(Assembly.GetExecutingAssembly());
 
 var app = builder.Build();
@@ -22,6 +22,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCors(CorsPolicies.Frontend);
 
 app.UseAuthentication();
 app.UseAuthorization();
