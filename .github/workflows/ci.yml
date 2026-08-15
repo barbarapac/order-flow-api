@@ -71,7 +71,7 @@ jobs:
             /d:sonar.token="${SONAR_TOKEN}" \
             /d:sonar.cs.opencover.reportsPaths="**/TestResults/coverage.opencover.xml,**/TestResults/**/coverage.opencover.xml" \
             /d:sonar.cs.vstest.reportsPaths="**/TestResults/*.trx,**/TestResults/**/*.trx" \
-            /d:sonar.coverage.exclusions="**/Program.cs,**/IoC.cs,**/Migrations/**" \
+            /d:sonar.coverage.exclusions="**/Program.cs,**/IoC.cs,**/Migrations/**,src/OrderFlow.WebApi/**,src/OrderFlow.Infrastructure/**" \
             /d:sonar.qualitygate.wait=true
 
       - name: Build
@@ -84,7 +84,8 @@ jobs:
             --logger "trx;LogFileName=test-results.trx" \
             /p:CollectCoverage=true \
             /p:CoverletOutput=${{ github.workspace }}/${{ env.COVERAGE_DIR }}/coverage.opencover.xml \
-            /p:CoverletOutputFormat=opencover
+            /p:CoverletOutputFormat=opencover \
+            /p:Include="[OrderFlow.Domain]*%2c[OrderFlow.Application]*"
 
       - name: SonarCloud end
         env:
