@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Domain.Orders;
 using OrderFlow.Domain.Products;
@@ -5,6 +6,7 @@ using OrderFlow.Domain.Users;
 
 namespace OrderFlow.Infrastructure._Shared;
 
+[ExcludeFromCodeCoverage]
 public sealed class OrderFlowDbContext(DbContextOptions<OrderFlowDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users       => Set<User>();

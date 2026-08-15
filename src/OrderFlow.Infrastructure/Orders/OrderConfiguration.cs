@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OrderFlow.Domain.Orders;
@@ -5,6 +6,7 @@ using OrderFlow.Domain.Orders.ValueObjects;
 
 namespace OrderFlow.Infrastructure.Orders;
 
+[ExcludeFromCodeCoverage]
 public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> builder)

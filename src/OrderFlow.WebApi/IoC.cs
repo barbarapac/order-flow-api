@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.OpenApi;
 using OrderFlow.WebApi._Shared;
 
 namespace OrderFlow.WebApi;
 
+[ExcludeFromCodeCoverage]
 public static class IoC
 {
     public static void AddWebApi(this IServiceCollection services)

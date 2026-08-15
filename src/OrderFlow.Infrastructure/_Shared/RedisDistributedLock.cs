@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using OrderFlow.Application._Shared;
 using StackExchange.Redis;
 
 namespace OrderFlow.Infrastructure._Shared;
 
+[ExcludeFromCodeCoverage]
 public sealed class RedisDistributedLock(IConnectionMultiplexer redis) : IDistributedLock
 {
     private static readonly TimeSpan LockExpiry = TimeSpan.FromSeconds(30);

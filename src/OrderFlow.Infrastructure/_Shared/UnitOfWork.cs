@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Storage;
 using OrderFlow.Application._Shared;
 
 namespace OrderFlow.Infrastructure._Shared;
 
+[ExcludeFromCodeCoverage]
 public sealed class UnitOfWork(OrderFlowDbContext dbContext) : IUnitOfWork
 {
     private IDbContextTransaction? _transaction;

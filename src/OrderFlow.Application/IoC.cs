@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using OrderFlow.Application._Shared;
 
 namespace OrderFlow.Application;
 
+[ExcludeFromCodeCoverage]
 public static class DependencyInjection
 {
     private static readonly System.Reflection.Assembly ApplicationAssembly = typeof(DependencyInjection).Assembly;

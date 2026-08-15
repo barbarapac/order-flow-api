@@ -224,7 +224,24 @@ Lida de `appsettings.json` ou de variáveis de ambiente no formato `Seção__Cha
 ```bash
 dotnet test                                           # todos
 dotnet test --filter "FullyQualifiedName~OrderTests"  # um arquivo
+
+# com relatório de cobertura (OpenCover — o mesmo formato consumido pelo SonarCloud)
+dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 ```
+
+230 testes cobrindo as quatro camadas:
+
+| Camada | O que é testado | Como |
+|---|---|---|
+| `Domain` | Invariantes, máquina de estados, Value Objects | xUnit puro |
+| `Application` | Handlers, validators, pipeline de validação | Moq nas interfaces de porta |
+| `Infrastructure` | Repositórios, `UnitOfWork`, mapeamento EF, lock Redis | SQLite em memória (provider relacional real) e Moq no `IConnectionMultiplexer` |
+| `WebApi` | Rotas, binding, status codes, `ProblemDetails` | host mínimo em memória (`TestServer`) com `ISender` mockado |
+
+Ficam fora da medição de cobertura, por não conterem lógica verificável sem subir a aplicação
+inteira: `Program.cs`, os `IoC.cs` de cada camada, as migrations do EF e o `DapperQueryExecutor`
+(adaptador fino sobre o driver Npgsql). As exclusões estão declaradas em dois lugares que precisam
+concordar: `[ExcludeFromCodeCoverage]` no código e `sonar.coverage.exclusions` no workflow de CI.
 
 ## Estrutura do projeto
 

@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using Dapper;
 using Npgsql;
 using OrderFlow.Application._Shared;
 
 namespace OrderFlow.Infrastructure._Shared;
 
+[ExcludeFromCodeCoverage]
 public sealed class DapperQueryExecutor(NpgsqlDataSource dataSource) : IQueryExecutor
 {
     public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken cancellationToken)

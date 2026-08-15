@@ -59,4 +59,17 @@ public class EmailTests
         // Assert
         first.Should().Be(second);
     }
+
+    [Fact]
+    public void ToString_ReturnsTheNormalizedValue()
+    {
+        // Arrange
+        var email = Email.Create("  Ana@Example.COM ");
+
+        // Act
+        var text = email.ToString();
+
+        // Assert
+        text.Should().Be("ana@example.com");
+    }
 }

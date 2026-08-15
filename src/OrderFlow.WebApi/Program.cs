@@ -39,5 +39,6 @@ await app.RunAsync();
 
 namespace OrderFlow.WebApi
 {
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public partial class Program;
 }

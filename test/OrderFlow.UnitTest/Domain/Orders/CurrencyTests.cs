@@ -59,4 +59,17 @@ public class CurrencyTests
         // Assert
         first.Should().Be(second);
     }
+
+    [Fact]
+    public void ToString_ReturnsTheNormalizedCode()
+    {
+        // Arrange
+        var currency = Currency.Create(" brl ");
+
+        // Act
+        var text = currency.ToString();
+
+        // Assert
+        text.Should().Be("BRL");
+    }
 }

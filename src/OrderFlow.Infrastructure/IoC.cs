@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ using StackExchange.Redis;
 
 namespace OrderFlow.Infrastructure;
 
+[ExcludeFromCodeCoverage]
 public static class IoC
 {
     public static void AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
