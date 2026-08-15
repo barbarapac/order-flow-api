@@ -11,7 +11,7 @@ internal static class Sql
                available_quantity AS AvailableQuantity, 
                created_at_utc AS CreatedAtUtc
         FROM products
-        ORDER BY created_at_utc
+        ORDER BY created_at_utc DESC, "Id" DESC
         OFFSET @Skip LIMIT @PageSize;
         """;
 }
