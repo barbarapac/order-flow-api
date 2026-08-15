@@ -6,24 +6,95 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  SOLUTION: OrderFlow.sln
+  TEST_PROJECT: test/OrderFlow.UnitTest/OrderFlow.UnitTest.csproj
+  COVERAGE_DIR: test/OrderFlow.UnitTest/TestResults
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # o dotnet-sonarscanner ainda tem como alvo net8/net9; permite rodar sobre o runtime 10
+  DOTNET_ROLL_FORWARD: Major
+
 jobs:
-  build-and-test:
-    name: Build & Test
+  build-test-analyze:
+    name: Build, Test & SonarCloud
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # histórico completo: o Sonar usa blame para atribuir "new code"
+          fetch-depth: 0
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
+      - name: Setup Java 17 (requisito do SonarScanner)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache de pacotes NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Instalar SonarScanner
+        run: dotnet tool install --global dotnet-sonarscanner
+
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
+      # o scanner .NET aborta se encontrar o arquivo do scanner genérico na raiz;
+      # a configuração efetiva é a passada no begin abaixo
+      - name: Remove sonar-project.properties (incompatível com o scanner .NET)
+        run: rm -f sonar-project.properties
+
+      - name: SonarCloud begin
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet-sonarscanner begin \
+            /k:"barbarapac_order-flow-api" \
+            /o:"barbarapac" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.token="${SONAR_TOKEN}" \
+            /d:sonar.cs.opencover.reportsPaths="**/TestResults/coverage.opencover.xml,**/TestResults/**/coverage.opencover.xml" \
+            /d:sonar.cs.vstest.reportsPaths="**/TestResults/*.trx,**/TestResults/**/*.trx" \
+            /d:sonar.coverage.exclusions="**/Program.cs,**/IoC.cs,**/Migrations/**" \
+            /d:sonar.qualitygate.wait=true
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build ${{ env.SOLUTION }} --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal
+      - name: Test com cobertura (OpenCover)
+        run: |
+          dotnet test ${{ env.TEST_PROJECT }} \
+            --configuration Release --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            /p:CollectCoverage=true \
+            /p:CoverletOutput=${{ github.workspace }}/${{ env.COVERAGE_DIR }}/coverage.opencover.xml \
+            /p:CoverletOutputFormat=opencover
+
+      - name: SonarCloud end
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet-sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+
+      - name: Publicar resultados de teste
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ env.COVERAGE_DIR }}
+          if-no-files-found: warn
