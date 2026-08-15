@@ -4,124 +4,131 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## O que é este projeto
 
-API de gestão de Pedidos (OrderFlow) em .NET 10 / ASP.NET Core Minimal API, construída como desafio técnico.
-DDD com camadas `Domain` / `Application` / `Infrastructure` / `WebApi`, organizadas internamente por
-**Vertical Slice** (a pasta raiz dentro de cada camada é a feature, não a camada técnica), EF Core + Postgres,
-CQRS via `Mediator` (pacote de Martin Othamar, baseado em source generator — não confundir com `MediatR`), com
-`Command`/`Query` distinguidos por `ICommand<TResponse>`/`IQuery<TResponse>`.
+API de gestão de pedidos (OrderFlow) em .NET 10 / ASP.NET Core Minimal API. DDD com as camadas
+`Domain` / `Application` / `Infrastructure` / `WebApi`, cada uma organizada internamente por **Vertical Slice**
+(a pasta de primeiro nível dentro da camada é a feature, não o tipo técnico). EF Core + PostgreSQL na escrita,
+Dapper na leitura, Redis para lock distribuído, CQRS via `Mediator` (pacote de Martin Othamar, baseado em
+source generator — **não** é o `MediatR`), com `ICommand<TResponse>` / `IQuery<TResponse>` distinguindo
+escrita de leitura.
 
-O código (entidades, propriedades, comandos: `User`, `Order`, `Product`, `Register`, `Confirm`, `Cancel`) é em
-**inglês**; a documentação (`docs/*.md`, este arquivo) é em **português**.
+O código (entidades, comandos, propriedades: `User`, `Order`, `Product`, `Register`, `Confirm`, `Cancel`) é em
+**inglês**; a documentação (`README.md`, `docs/*.md`, este arquivo) e as mensagens de erro ao usuário são em
+**português** (ADR-002).
 
-Documentação de arquitetura completa — leia antes de decisões estruturais não triviais:
-- `docs/README.md` — índice da documentação
-- `docs/architecture.md` — camadas, Vertical Slice, pipeline de requisição, CQRS escrita/leitura
-- `docs/domain-model.md` — agregados, invariantes, máquina de estados, eventos de domínio
+Documentação — leia antes de decisões estruturais não triviais:
+
+- `docs/architecture.md` — camadas, Vertical Slice, caminho da requisição, escrita vs. leitura
+- `docs/domain-model.md` — agregados, invariantes, máquina de estados, eventos
 - `docs/concurrency.md` — o problema de estoque, lock distribuído + update condicional, limitações
 - `docs/error-handling.md` — taxonomia de erros e mapeamento para `ProblemDetails`
-- `docs/decisions/` — ADRs numerados (001 a 014), um por arquivo, com o "porquê" + roadmap de fases
-
-**Status atual**: Fases 1 a 7 concluídas — o projeto está completo. Cadastro/login de usuário, JWT, tratamento
-de erro global; CRUD completo de `Product`; `Order` com `Create`/`Confirm`/`Cancel`, baixa e devolução de
-estoque via lock distribuído Redis; read-side em Dapper; 146 testes xUnit cobrindo domínio/Application/
-Infrastructure + auditoria de `CancellationToken` end-to-end; README + documentação de arquitetura, CI
-(GitHub Actions) e licença MIT.
+- `docs/decisions/` — ADRs numerados (001 a 015), um por arquivo, com o "porquê" de cada escolha
 
 ## Comandos
 
 ```bash
-# Build
-dotnet build
+dotnet build                                            # build da solution
+dotnet test                                             # todos os testes
+dotnet test --filter "FullyQualifiedName~OrderTests"    # um arquivo/classe de teste
 
-# Testes (todos)
-dotnet test
-
-# Um teste específico
-dotnet test --filter "FullyQualifiedName~UserTests.MethodName"
-
-# Subir Postgres + API via Docker (migrations aplicadas automaticamente no startup)
-docker compose up --build
-
-# Só o Postgres (para rodar a API localmente fora do Docker)
-docker compose up postgres -d
+docker compose up --build                               # Postgres + Redis + API (migrations no startup)
+docker compose up postgres redis -d                     # só a infra, para rodar a API local
 dotnet run --project src/OrderFlow.WebApi
 
-# Nova migration EF Core (executar de dentro de src/OrderFlow.Infrastructure)
+# nova migration EF Core (executar de dentro de src/OrderFlow.Infrastructure)
 dotnet ef migrations add <Nome> --startup-project ../OrderFlow.WebApi
 ```
 
-Swagger UI em `http://localhost:8080/swagger` (Docker) quando `ASPNETCORE_ENVIRONMENT=Development`.
+Swagger UI em `http://localhost:8080/swagger` (Docker) — só é exposto quando
+`ASPNETCORE_ENVIRONMENT=Development`.
+
+O CI (`.github/workflows/ci.yml`) roda build + testes com cobertura OpenCover e SonarCloud com
+`qualitygate.wait=true` — a cobertura é medida **apenas** sobre `[OrderFlow.Domain]` e `[OrderFlow.Application]`
+(`/p:Include` no `dotnet test`, mais `sonar.coverage.exclusions`). Código novo em `WebApi`/`Infrastructure` não
+precisa de teste para o gate passar; código novo em `Domain`/`Application` precisa.
 
 ## Arquitetura
 
-### Camadas e dependências
+### Camadas e composição
 
-`Domain` ← `Application` ← `Infrastructure` ← `WebApi` (referências de projeto seguem essa direção; `Domain`
-não depende de nada, `Infrastructure` implementa interfaces definidas em `Application`/`Domain`).
+`Domain` ← `Application` ← `Infrastructure` ← `WebApi`. O `Domain` não depende de nada (exceção consciente:
+`Mediator.Abstractions`, porque eventos de domínio são notificações do mediador). Interfaces de repositório são
+declaradas no `Domain`; `IDistributedLock`, `IQueryExecutor`, `IUnitOfWork`, `IPasswordHasher` e
+`IJwtTokenGenerator` na `Application` — todas implementadas na `Infrastructure`.
 
-Cada camada tem seu próprio `IoC.cs` com um método de extensão (`AddApplication`, `AddInfrastructure`,
-`AddWebApi`) registrado em `Program.cs`.
+Cada camada tem um `IoC.cs` com um método de extensão (`AddApplication`, `AddInfrastructure`, `AddWebApi`),
+chamado no `Program.cs`.
 
-### Vertical Slice dentro de cada camada
+### Registro de endpoints
 
-Dentro de `Domain`/`Application`/`WebApi`, a estrutura de pastas é por feature, não por tipo técnico:
-`Users/Register/`, `Auth/Login/` (e futuramente `Products/Create/`, `Orders/Confirm/`, etc.), cada uma com seus
-próprios Command/Handler/Validator/Response (Application) e Endpoint/Request (WebApi). Pastas `_Shared/` dentro
-de cada camada guardam o que é genuinamente cross-cutting (Shared Kernel, `IEndpoint`, exception handler, etc.).
+Endpoints não são mapeados à mão. Cada um implementa `IEndpoint` (`WebApi/_Shared/IEndpoint.cs`) com
+`Map(IEndpointRouteBuilder)`; `AddEndpoints(assembly)` descobre as implementações por reflection e
+`MapEndpoints()` registra no startup. **Adicionar um endpoint é criar uma classe na pasta da feature — o
+`Program.cs` não muda.**
 
-### Registro de endpoints (Minimal API)
-
-Endpoints não são mapeados manualmente em `Program.cs`. Cada endpoint implementa `IEndpoint`
-(`src/OrderFlow.WebApi/_Shared/IEndpoint.cs`) com um método `Map(IEndpointRouteBuilder)`; `AddEndpoints(assembly)`
-descobre todas as implementações via reflection e `MapEndpoints()` as registra no startup. Para adicionar um
-endpoint novo, basta criar a classe implementando `IEndpoint` na pasta da feature — não é preciso tocar em
-`Program.cs`.
+O endpoint só traduz HTTP em Command/Query e o `Result<T>` de volta em resposta (`.ToProblemResult()` na falha).
+Nenhuma regra de negócio vive ali. O `CustomerId` sempre vem do claim do JWT (`user.GetUserId()`), nunca do
+payload.
 
 ### Tratamento de erro — três caminhos, uma tabela
 
-Ver `docs/error-handling.md` para o detalhe completo. Resumo do que importa ao escrever código novo:
-
-- **Validação de payload** (FluentValidation): um `Validator` por Command, descoberto automaticamente
-  (`AddValidatorsFromAssembly`). Roda no `ValidationBehavior` (`IPipelineBehavior<TMessage,TResponse>` do
-  `Mediator`), **antes** do handler —
-  lança `FluentValidation.ValidationException` → 400.
+- **Validação de payload**: um `Validator` FluentValidation por Command, descoberto por
+  `AddValidatorsFromAssembly`. Roda no `ValidationBehavior` (`IPipelineBehavior`) **antes** do handler; lança
+  `ValidationException` → 400. Pipeline behaviors precisam ser registrados explicitamente no `AddMediator` —
+  essa lib não faz assembly scan para eles.
 - **Invariante de agregado** (`Domain`): Guard Clauses estáticas `internal` (`UserGuard`, `OrderGuard`) chamadas
-  no início de construtores/factories/métodos de transição, lançando a exception selada do agregado
-  (`OrderException`, `UserException`, ambas herdando de `DomainException`) — fail fast, nunca deixa o objeto
-  existir em estado inválido. Códigos/mensagens ficam em factories nomeadas dentro dessa exception, não
-  espalhados pelos guards. Só agregados ricos (`User`, `Order`) têm Guard; `Product` é anêmico e não tem.
-- **"Não encontrado" / orquestração na Application**: `Result<T>` (`Result.Success`/`Result.Failure(Error)`),
-  tratado direto no endpoint via `.ToProblemResult()` — nunca vira exception.
-- Toda exception não tratada cai no `GlobalExceptionHandler` (`IExceptionHandler`, não middleware customizado),
-  que usa a tabela única `ErrorTypeExtensions.ToStatusCode()` (`Validation`→400, `Unauthorized`→401,
-  `NotFound`→404, `Conflict`→409, `BusinessRule`→422) — a mesma tabela usada pelo `Result<T>.Failure` no
-  endpoint. Não crie um novo mapeamento de status em outro lugar.
-- Códigos de erro (`Code` em `DomainException`/`Error`) seguem `{aggregate}.{motivo}` em snake_case
-  (`order.invalid_transition`, `user.invalid_email`).
+  no início de construtores/factories/transições, lançando a exception selada do agregado (`OrderException`,
+  `UserException`, ambas herdando de `DomainException`). Códigos e mensagens ficam em factories nomeadas dentro
+  dessa exception, não espalhados pelos guards.
+- **"Não encontrado" e orquestração** (`Application`): `Result<T>.Success` / `Result<T>.Failure(Error)`, tratado
+  no endpoint — nunca vira exception.
+- Toda exception não tratada cai no `GlobalExceptionHandler` (`IExceptionHandler`, não middleware), que usa a
+  tabela única `ErrorTypeExtensions.ToStatusCode()` (`Validation`→400, `Unauthorized`→401, `NotFound`→404,
+  `Conflict`→409, `BusinessRule`→422) — a mesma usada pelo `Result` no endpoint. **Não crie outro mapeamento de
+  status em lugar nenhum.**
+- Códigos de erro (`Code`) seguem `{agregado}.{motivo}` em snake_case: `order.not_found`,
+  `order.invalid_transition`, `user.invalid_email`.
 
-### Decisões de domínio a respeitar em código novo
+### Escrita e leitura
 
-- IDs de agregado são `Guid` gerados em memória (não `IDENTITY`/serial) — ver ADR-001.
-- `Order.CustomerId` é sempre derivado do claim do JWT autenticado, nunca recebido no payload — não existe
-  entidade `Customer` separada de `User` (ADR-004).
-- Baixa de estoque só acontece em `Order.Confirm()`, nunca em `Order.Create()` — a criação apenas valida
-  `AvailableQuantity >= Quantity` no handler (ADR-005). Confirmação usa update condicional
-  (`WHERE available_quantity >= @qty`, via `ExecuteUpdateAsync`) dentro de transação + lock distribuído Redis
-  por `ProductId` (ordenado, para evitar deadlock em pedidos multi-item) — ver ADR-006, ADR-007 e
-  `docs/concurrency.md` antes de mexer nesse fluxo.
-- `Product` é deliberadamente anêmico (propriedades públicas, CRUD simples via Application); `Order`/`OrderItem`
-  concentram todo o comportamento de negócio no agregado. Não adicione Guards/métodos de negócio em `Product`.
-- As transições **retornam** o evento de domínio (`Confirm()` → `OrderConfirmed`, `Cancel()` → `OrderCanceled?`,
-  `null` quando o pedido só estava `Placed`); não há `AggregateRoot.Raise()`/lista interna de eventos. Quem
-  publica é o handler, dentro da transação.
-- Idempotência de `Confirm`/`Cancel` mora **no handler** (early return se `IsConfirmed`/`IsCanceled`, dentro do
-  lock `order:{id}:status`), não no agregado — `OrderGuard.CanConfirm`/`CanCancel` continuam lançando em
-  transição inválida. Preserve essa divisão ao alterar a máquina de estados.
-- Senha em texto puro nunca chega ao Domain: validação de política de senha é FluentValidation na Application;
-  o Domain só recebe o hash já pronto (`IPasswordHasher` fica na Infrastructure).
+Escrita usa EF Core (change tracking, transações via `IUnitOfWork`). Leitura usa Dapper via `IQueryExecutor`,
+com o SQL literal num `internal static class Sql` dentro da pasta da própria Query, projetando direto no
+Response. As colunas são snake_case (`unit_price`, `available_quantity`, `created_at_utc`), exceto `"Id"`, que
+é PascalCase e **precisa de aspas** no SQL — ver `ProductConfiguration`/`OrderConfiguration` para o mapeamento
+real antes de escrever query nova.
 
-### Convenções de projeto
+## Decisões de domínio a respeitar em código novo
 
-- Nullable + ImplicitUsings habilitados em todos os projetos (.NET 10).
-- Testes usam xUnit + FluentAssertions + Moq + AutoBogus, espelhando a estrutura de pastas de `src/` dentro de
-  `test/OrderFlow.UnitTest/` (`Domain/Users/`, `Application/Auth/`, `Infrastructure/Security/`, etc.).
+- IDs de agregado são `Guid` gerados em memória, `ValueGeneratedNever()` (ADR-001).
+- Não existe entidade `Customer` separada de `User`; `Order.CustomerId` é o id do usuário autenticado (ADR-004).
+- **Estoque é validado na criação do pedido e baixado só na confirmação** (ADR-005). A confirmação é a região
+  crítica: `ConfirmOrderCommandHandler` pega o lock `order:{id}:status`, abre transação e publica o evento;
+  `OrderConfirmedEventHandler` pega os locks `product:{id}:stock` **em ordem crescente de `ProductId`** (evita
+  deadlock em pedido multi-item) e chama `DecrementStockAsync`, que é um update condicional
+  (`WHERE available_quantity >= @qty` via `ExecuteUpdateAsync`). `affectedRows == 0` significa estoque
+  insuficiente → `InsufficientStockException` derruba a transação inteira; não há baixa parcial. Leia
+  `docs/concurrency.md` + ADR-006/ADR-007 antes de mexer nesse fluxo.
+- Quem garante a invariante é o banco (o update condicional); o Redis apenas serializa antes. Se o Redis cair, a
+  não-negatividade continua protegida.
+- `Product` é deliberadamente anêmico (ADR-008): propriedades públicas, CRUD simples na Application, sem Guard e
+  sem método de negócio. `Order`/`OrderItem` concentram o comportamento.
+- As transições **retornam** o evento: `Confirm()` → `OrderConfirmed`, `Cancel()` → `OrderCanceled?` (`null`
+  quando o pedido só estava `Placed`, pois não há estoque a devolver). Não existe `AggregateRoot.Raise()` nem
+  lista interna de eventos — quem publica é o handler, dentro da transação.
+- Idempotência de `Confirm`/`Cancel` mora **no handler** (early return em `IsConfirmed`/`IsCanceled`, dentro do
+  lock), não no agregado — `OrderGuard.CanConfirm`/`CanCancel` continuam lançando em transição realmente
+  inválida (→ 409). Preserve essa divisão.
+- Senha em texto puro nunca chega ao `Domain`: a política de senha é FluentValidation na Application e o
+  `Domain` só recebe o hash pronto.
+- `Cors:AllowedOrigins` é obrigatório fora de `Development` — a ausência derruba o startup de propósito
+  (ADR-015). Origens são normalizadas (barra final removida) em `CorsPolicies.Normalize`.
+
+## Convenções de teste
+
+`test/OrderFlow.UnitTest/` referencia **apenas** `Domain` e `Application` e espelha a estrutura de pastas de
+`src/`. xUnit + FluentAssertions + Moq + AutoBogus.
+
+Cada slice de teste segue o mesmo padrão: a classe de teste herda de um `Fixtures/<Handler>Fixture` que monta os
+mocks e o handler; os dublês ficam em `Mocks/<Dependência>Mock.cs` (wrappers sobre `Mock<T>` expondo
+`ConfigureXToReturn` / `VerifyX`); os dados em `Fakers/<Tipo>Faker.cs`. Testes seguem
+`Metodo_Cenario_Resultado` com blocos `// Arrange` / `// Act` / `// Assert`. Ao criar um teste novo, siga o
+formato do slice vizinho em vez de instanciar `Mock<T>` direto no teste.

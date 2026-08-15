@@ -46,6 +46,8 @@ services:
       Jwt__Audience: "OrderFlow.Client"
       Jwt__SigningKey: "docker-compose-dev-signing-key-please-change-32B+"
       Jwt__ExpirationMinutes: "60"
+      Cors__AllowedOrigins__0: "http://localhost:5173"
+      Cors__AllowedOrigins__1: "http://127.0.0.1:5173"
     ports:
       - "8080:8080"
 
