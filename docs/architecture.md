@@ -130,3 +130,25 @@ Commands. Antecipar isso agora custaria consistência eventual sem benefício.
 
 Cada uma é detalhada em [`domain-model.md`](./domain-model.md), [`concurrency.md`](./concurrency.md) e
 [`error-handling.md`](./error-handling.md).
+
+## Quem garante que isso continua verdade
+
+Parte do que está descrito acima o compilador garante sozinho, pelo grafo de `ProjectReference`: `Domain` não
+enxerga `Application`, `Application` não enxerga `Infrastructure`. O resto — endpoint que pula a `Application`,
+slice que espia o vizinho, `PackageReference` de EF Core adicionado ao `Domain`, convenção de nome e
+visibilidade — compilaria sem reclamar.
+
+Essas regras são verificadas por `test/OrderFlow.ArchitectureTest`, com ArchUnitNET
+([ADR-016](./decisions/016-testes-de-arquitetura.md)):
+
+| Regra | Onde |
+|---|---|
+| Direção das dependências entre as quatro camadas | `LayerDependencyTests` |
+| `Domain`/`Application` sem EF Core, ASP.NET, Npgsql ou Redis | `LayerDependencyTests` |
+| Endpoint não toca em `Infrastructure` nem em repositório | `LayerDependencyTests` |
+| Slice não depende de slice vizinho, na `Application` e na `WebApi` | `VerticalSliceTests` |
+| Nome, `sealed`, `internal`/`static` e contrato de cada papel | `ConventionTests` |
+| Todo Command/Query tem exatamente um handler | `MediatorContractTests` |
+
+Os slices são descobertos por reflection: criar uma feature nova não exige tocar no teste — ela já entra nas
+regras.

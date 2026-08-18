@@ -21,14 +21,15 @@ Documentação — leia antes de decisões estruturais não triviais:
 - `docs/domain-model.md` — agregados, invariantes, máquina de estados, eventos
 - `docs/concurrency.md` — o problema de estoque, lock distribuído + update condicional, limitações
 - `docs/error-handling.md` — taxonomia de erros e mapeamento para `ProblemDetails`
-- `docs/decisions/` — ADRs numerados (001 a 015), um por arquivo, com o "porquê" de cada escolha
+- `docs/decisions/` — ADRs numerados (001 a 016), um por arquivo, com o "porquê" de cada escolha
 
 ## Comandos
 
 ```bash
 dotnet build                                            # build da solution
-dotnet test                                             # todos os testes
+dotnet test                                             # todos os testes (unitários + arquitetura)
 dotnet test --filter "FullyQualifiedName~OrderTests"    # um arquivo/classe de teste
+dotnet test test/OrderFlow.ArchitectureTest             # só as regras de arquitetura
 
 docker compose up --build                               # Postgres + Redis + API (migrations no startup)
 docker compose up postgres redis -d                     # só a infra, para rodar a API local
@@ -41,8 +42,9 @@ dotnet ef migrations add <Nome> --startup-project ../OrderFlow.WebApi
 Swagger UI em `http://localhost:8080/swagger` (Docker) — só é exposto quando
 `ASPNETCORE_ENVIRONMENT=Development`.
 
-O CI (`.github/workflows/ci.yml`) roda build + testes com cobertura OpenCover e SonarCloud com
-`qualitygate.wait=true` — a cobertura é medida **apenas** sobre `[OrderFlow.Domain]` e `[OrderFlow.Application]`
+O CI (`.github/workflows/ci.yml`) roda build, os testes de arquitetura, os testes com cobertura OpenCover e o
+SonarCloud com `qualitygate.wait=true` — a cobertura é medida **apenas** sobre `[OrderFlow.Domain]` e
+`[OrderFlow.Application]`
 (`/p:Include` no `dotnet test`, mais `sonar.coverage.exclusions`). Código novo em `WebApi`/`Infrastructure` não
 precisa de teste para o gate passar; código novo em `Domain`/`Application` precisa.
 
@@ -132,3 +134,20 @@ mocks e o handler; os dublês ficam em `Mocks/<Dependência>Mock.cs` (wrappers s
 `ConfigureXToReturn` / `VerifyX`); os dados em `Fakers/<Tipo>Faker.cs`. Testes seguem
 `Metodo_Cenario_Resultado` com blocos `// Arrange` / `// Act` / `// Assert`. Ao criar um teste novo, siga o
 formato do slice vizinho em vez de instanciar `Mock<T>` direto no teste.
+
+### Testes de arquitetura
+
+`test/OrderFlow.ArchitectureTest/` é uma segunda suíte, com ArchUnitNET, que referencia as **quatro** camadas —
+por isso é um projeto separado, e o `OrderFlow.UnitTest` continua restrito a `Domain`/`Application` (ADR-016).
+Não entra no `/p:Include` de cobertura; roda em passo próprio do CI.
+
+- `Fixtures/ArchitectureFixture.cs` carrega os assemblies uma vez e expõe os seletores de camada. O assembly da
+  `WebApi` vem de `typeof(IEndpoint)` — `Program` é `internal` por causa dos top-level statements.
+- `LayerDependencyTests` (direção e pureza das camadas, endpoint sem `Infrastructure`/repositório),
+  `VerticalSliceTests` (slice não depende de slice vizinho), `ConventionTests` (nome, `sealed`,
+  `internal`/`static`, contrato de cada papel) e `MediatorContractTests` (todo Command/Query tem um handler).
+- Os slices são descobertos por reflection sobre os namespaces: **feature nova não exige tocar no teste**.
+- ArchUnitNET exige avaliação positiva — uma regra cujo seletor não casa com nada **falha**, em vez de passar
+  vazia. Se aparecer "The rule requires positive evaluation", o seletor está errado, não o código.
+- Ao mudar uma regra estrutural, mude o ADR e o teste juntos. Exceção consciente vai comentada no teste, como
+  o Dapper permitido na `Application` e a `InsufficientStockException` como única exception da camada.
