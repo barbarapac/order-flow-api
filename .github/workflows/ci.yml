@@ -13,6 +13,7 @@ permissions:
 env:
   SOLUTION: OrderFlow.sln
   TEST_PROJECT: test/OrderFlow.UnitTest/OrderFlow.UnitTest.csproj
+  ARCHITECTURE_TEST_PROJECT: test/OrderFlow.ArchitectureTest/OrderFlow.ArchitectureTest.csproj
   COVERAGE_DIR: test/OrderFlow.UnitTest/TestResults
   DOTNET_NOLOGO: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -77,6 +78,13 @@ jobs:
       - name: Build
         run: dotnet build ${{ env.SOLUTION }} --configuration Release --no-restore
 
+      # arquitetura primeiro: falha estrutural é mais barata de ler do que teste de comportamento
+      - name: Testes de arquitetura
+        run: |
+          dotnet test ${{ env.ARCHITECTURE_TEST_PROJECT }} \
+            --configuration Release --no-build \
+            --logger "trx;LogFileName=architecture-results.trx"
+
       - name: Test com cobertura (OpenCover)
         run: |
           dotnet test ${{ env.TEST_PROJECT }} \
@@ -97,5 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: ${{ env.COVERAGE_DIR }}
+          path: |
+            ${{ env.COVERAGE_DIR }}
+            test/OrderFlow.ArchitectureTest/TestResults
           if-no-files-found: warn

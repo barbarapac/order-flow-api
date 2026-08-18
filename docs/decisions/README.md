@@ -22,6 +22,7 @@ isso custa. Aqui está o **porquê**; o **como** está em [`architecture.md`](..
 | 013 | [Handler global de exception e tabela única de status](./013-iexceptionhandler-tabela-errortype.md) |
 | 014 | [Dapper na leitura, EF Core dono da escrita](./014-dapper-read-side.md) |
 | 015 | [CORS com origens explícitas vindas de configuração](./015-cors-origens-explicitas.md) |
+| 016 | [Testes de arquitetura com ArchUnitNET](./016-testes-de-arquitetura.md) |
 
 As três decisões que mais moldam o projeto são a 005, a 006 e a 007: juntas, elas respondem como o estoque nunca
 fica negativo.

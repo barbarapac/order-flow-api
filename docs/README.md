@@ -9,7 +9,7 @@ construída e **por que** ela é assim.
 | [`domain-model.md`](./domain-model.md) | Quais são as regras de negócio e quem as garante |
 | [`concurrency.md`](./concurrency.md) | Como o estoque nunca fica negativo sob concorrência |
 | [`error-handling.md`](./error-handling.md) | Como uma falha vira resposta HTTP |
-| [`decisions/`](./decisions/) | Por que cada decisão foi tomada — 14 ADRs |
+| [`decisions/`](./decisions/) | Por que cada decisão foi tomada — 16 ADRs |
 
 Se você tem cinco minutos, leia [`concurrency.md`](./concurrency.md): é o problema que orienta o resto do
 projeto.

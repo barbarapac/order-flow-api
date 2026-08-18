@@ -131,7 +131,7 @@ flowchart LR
 | Autenticação | JWT Bearer + BCrypt.Net | — |
 | Concorrência | StackExchange.Redis | lock distribuído, implementação manual ([ADR-007](docs/decisions/007-lock-distribuido-redis.md)) |
 | Erros | `ProblemDetails` | ponto único de tradução ([ADR-013](docs/decisions/013-iexceptionhandler-tabela-errortype.md)) |
-| Testes | xUnit · FluentAssertions · Moq · AutoBogus | — |
+| Testes | xUnit · FluentAssertions · Moq · AutoBogus · ArchUnitNET | — |
 
 ## O problema central: concorrência de estoque
 
@@ -220,8 +220,9 @@ Lida de `appsettings.json` ou de variáveis de ambiente no formato `Seção__Cha
 ## Testes
 
 ```bash
-dotnet test                                           # todos
-dotnet test --filter "FullyQualifiedName~OrderTests"  # um arquivo
+dotnet test                                                          # todos
+dotnet test --filter "FullyQualifiedName~OrderTests"                 # um arquivo
+dotnet test test/OrderFlow.ArchitectureTest                          # só os de arquitetura
 ```
 
 ## Estrutura do projeto
@@ -232,7 +233,9 @@ src/
 ├── OrderFlow.Application/     # casos de uso, um por pasta: Command/Query + Handler + Validator
 ├── OrderFlow.Infrastructure/  # EF Core, Dapper, Redis, JWT, BCrypt
 └── OrderFlow.WebApi/          # endpoints e composição da aplicação
-test/OrderFlow.UnitTest/       # espelha a estrutura de src/
+test/
+├── OrderFlow.UnitTest/         # espelha a estrutura de src/ — domínio e casos de uso
+└── OrderFlow.ArchitectureTest/ # regras de camada, slice e convenção, verificadas com ArchUnitNET
 docs/                          # documentação de arquitetura e ADRs
 ```
 
@@ -246,7 +249,7 @@ Este README cobre o uso. O porquê de cada decisão está documentado à parte:
 | [`docs/domain-model.md`](docs/domain-model.md) | Agregados, invariantes, máquina de estados, eventos |
 | [`docs/concurrency.md`](docs/concurrency.md) | O problema de estoque, as duas camadas de proteção, alternativas e limites |
 | [`docs/error-handling.md`](docs/error-handling.md) | Taxonomia de erros, `ProblemDetails`, códigos e exemplos |
-| [`docs/decisions/`](docs/decisions/) | 14 ADRs — contexto, alternativas, decisão e consequências |
+| [`docs/decisions/`](docs/decisions/) | 16 ADRs — contexto, alternativas, decisão e consequências |
 
 ## Licença
 
